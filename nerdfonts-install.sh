@@ -1,10 +1,7 @@
 #!/bin/bash
 
-# Script para instalação de Nerd Fonts - Versão Final
-# Uso: curl -fsSL <gist_url> | bash -s -- font1 font2 font3
-# Ou: curl -fsSL <gist_url> | bash (para instalar fontes padrão)
-
-set -euo pipefail
+# Script para instalação de Nerd Fonts - Versão Corrigida
+# Uso: ./nerdfonts-install-fixed.sh [fonte1] [fonte2] ... [fonteN]
 
 # Cores para output
 RED='\033[0;31m'
@@ -42,7 +39,8 @@ cleanup() {
     fi
 }
 
-trap cleanup EXIT INT TERM
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 # Fontes padrão (com ligaduras e populares)
 declare -a default_fonts=(
@@ -52,17 +50,6 @@ declare -a default_fonts=(
     "Hack"
     "SourceCodePro"
     "UbuntuMono"
-)
-
-# Fontes com ligaduras
-declare -a ligature_fonts=(
-    "FiraCode"
-    "JetBrainsMono"
-    "CascadiaCode"
-    "VictorMono"
-    "Iosevka"
-    "Hasklig"
-    "GeistMono"
 )
 
 # Todas as fontes disponíveis
@@ -90,14 +77,6 @@ font_exists() {
     return 1
 }
 
-show_available_fonts() {
-    printf '%s\n' "${all_fonts[@]}" | sort | column -c 80
-}
-
-show_ligature_fonts() {
-    printf '%s\n' "${ligature_fonts[@]}" | sort | column -c 80
-}
-
 detect_downloader() {
     if command -v curl &>/dev/null; then
         echo "curl"
@@ -123,27 +102,6 @@ test_connectivity() {
             return 1
             ;;
     esac
-}
-
-get_latest_version() {
-    local version=""
-    local downloader
-    downloader=$(detect_downloader)
-    
-    case "$downloader" in
-        "curl")
-            version=$(timeout 10 curl -s 'https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest' 2>/dev/null | grep '"tag_name"' | cut -d'"' -f4 2>/dev/null || echo "")
-            ;;
-        "wget")
-            version=$(timeout 10 wget -qO- 'https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest' 2>/dev/null | grep '"tag_name"' | cut -d'"' -f4 2>/dev/null || echo "")
-            ;;
-    esac
-    
-    if [[ -z "$version" ]] || [[ "$version" == "null" ]]; then
-        echo "v3.4.0"
-    else
-        echo "$version"
-    fi
 }
 
 download_file() {
@@ -182,16 +140,16 @@ install_font() {
             log "Extraindo $font..."
             if unzip -qq -o "$zip_file" -d "$fonts_dir" 2>/dev/null; then
                 success "$font instalada com sucesso"
-                rm -f "$zip_file"
+                rm -f "$zip_file" 2>/dev/null
                 return 0
             else
                 error "Falha ao extrair $font"
-                rm -f "$zip_file"
+                rm -f "$zip_file" 2>/dev/null
                 return 1
             fi
         else
             error "Arquivo baixado de $font está vazio ou corrompido"
-            rm -f "$zip_file"
+            rm -f "$zip_file" 2>/dev/null
             return 1
         fi
     else
@@ -218,8 +176,6 @@ main() {
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         error "Dependências ausentes: ${missing_deps[*]}"
         error "Ubuntu/Debian: sudo apt install curl wget unzip fontconfig coreutils"
-        error "Fedora/RHEL: sudo dnf install curl wget unzip fontconfig coreutils"
-        error "Arch: sudo pacman -S curl wget unzip fontconfig coreutils"
         exit 1
     fi
     
@@ -246,37 +202,14 @@ main() {
                 "--help"|"-h")
                     echo "Uso: $0 [fonte1] [fonte2] ... [fonteN]"
                     echo ""
-                    echo "Opções:"
-                    echo "  --help, -h         Mostrar esta ajuda"
-                    echo "  --list, -l         Listar todas as fontes disponíveis"
-                    echo "  --ligatures        Listar fontes com ligaduras"
-                    echo "  --default, -d      Instalar fontes padrão"
-                    echo "  --all-ligatures    Instalar todas as fontes com ligaduras"
-                    echo ""
                     echo "Se nenhuma fonte for especificada, as fontes padrão serão instaladas."
                     exit 0
-                    ;;
-                "--list"|"-l")
-                    log "Fontes disponíveis:"
-                    show_available_fonts
-                    exit 0
-                    ;;
-                "--ligatures")
-                    log "Fontes com ligaduras:"
-                    show_ligature_fonts
-                    exit 0
-                    ;;
-                "--default"|"-d")
-                    fonts_to_install=("${default_fonts[@]}")
-                    ;;
-                "--all-ligatures")
-                    fonts_to_install=("${ligature_fonts[@]}")
                     ;;
                 *)
                     if font_exists "$arg"; then
                         fonts_to_install+=("$arg")
                     else
-                        warn "Fonte '$arg' não existe. Use --list para ver fontes disponíveis."
+                        warn "Fonte '$arg' não existe."
                     fi
                     ;;
             esac
@@ -290,9 +223,8 @@ main() {
     
     log "Fontes a serem instaladas: ${fonts_to_install[*]}"
     
-    # Obter versão
-    local version
-    version=$(get_latest_version)
+    # Usar versão fixa
+    local version="v3.4.0"
     log "Usando versão: $version"
     
     # Instalar fontes
@@ -309,28 +241,40 @@ main() {
     
     # Limpeza
     log "Limpando arquivos desnecessários..."
-    find "$fonts_dir" -name '*.txt' -delete 2>/dev/null || true
-    find "$fonts_dir" -name '*.md' -delete 2>/dev/null || true
-    find "$fonts_dir" -name 'LICENSE*' -delete 2>/dev/null || true
-    find "$fonts_dir" -name 'README*' -delete 2>/dev/null || true
-    find "$fonts_dir" -name 'OFL.txt' -delete 2>/dev/null || true
-    find "$fonts_dir" -name 'Windows Compatible' -type d -exec rm -rf {} + 2>/dev/null || true
+    find "$fonts_dir" -name '*.txt' -delete 2>/dev/null
+    find "$fonts_dir" -name '*.md' -delete 2>/dev/null
+    find "$fonts_dir" -name 'LICENSE*' -delete 2>/dev/null
+    find "$fonts_dir" -name 'README*' -delete 2>/dev/null
+    find "$fonts_dir" -name 'OFL.txt' -delete 2>/dev/null
+    find "$fonts_dir" -name 'Windows Compatible' -type d -exec rm -rf {} + 2>/dev/null
     
     # Atualizar cache
     log "Atualizando cache de fontes..."
-    fc-cache -fv "$fonts_dir" &>/dev/null && success "Cache atualizado" || warn "Erro ao atualizar cache"
+    if fc-cache -fv "$fonts_dir" &>/dev/null; then
+        success "Cache atualizado"
+    else
+        warn "Erro ao atualizar cache"
+    fi
     
     # Resumo
     echo ""
     success "=== Instalação Concluída ==="
     success "Fontes instaladas: $installed_count"
-    [[ $failed_count -gt 0 ]] && warn "Falhas: $failed_count"
+    if [[ $failed_count -gt 0 ]]; then
+        warn "Falhas: $failed_count"
+    fi
     
     local total_fonts
     total_fonts=$(find "$fonts_dir" -name "*.ttf" -o -name "*.otf" 2>/dev/null | wc -l)
     success "Total de arquivos de fonte: $total_fonts"
     success "Diretório: $fonts_dir"
     log "Reinicie aplicações para usar as novas fontes."
+    
+    # Limpeza final
+    cleanup
+    
+    # Retornar sucesso
+    exit 0
 }
 
 # Executar
