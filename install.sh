@@ -188,6 +188,27 @@ run_ssh_git_setup() {
     fi
 }
 
+run_zsh_setup() {
+    section "Executando Setup do Zsh"
+    
+    local script_path="$SCRIPT_DIR/zsh-setup.sh"
+    
+    if [[ ! -f "$script_path" ]]; then
+        error "Script zsh-setup.sh não encontrado em $SCRIPT_DIR"
+        return 1
+    fi
+    
+    log "Executando: $script_path"
+    bash "$script_path"
+    
+    if [[ $? -eq 0 ]]; then
+        success "Setup do Zsh concluído"
+    else
+        error "Falha no setup do Zsh"
+        return 1
+    fi
+}
+
 run_all_scripts() {
     section "Executando Todos os Scripts"
     
@@ -207,6 +228,9 @@ run_all_scripts() {
     fi
     
     run_ssh_git_setup
+    echo ""
+    
+    run_zsh_setup
     echo ""
     
     success "Todos os scripts executados!"
@@ -245,16 +269,21 @@ show_menu() {
     echo "   • Múltiplas identidades Git"
     echo "   • Hosts SSH customizados"
     echo ""
-    echo -e "${CYAN}4)${NC} 🚀 Instalar Tudo - Executar todos os scripts"
+    echo -e "${CYAN}4)${NC} 🐚 Zsh Setup - Shell avançado"
+    echo "   • Zsh + Oh My Zsh + Powerlevel10k"
+    echo "   • Plugins essenciais e produtividade"
+    echo "   • Integração com configurações bash"
     echo ""
-    echo -e "${CYAN}5)${NC} ❌ Sair"
+    echo -e "${CYAN}5)${NC} 🚀 Instalar Tudo - Executar todos os scripts"
+    echo ""
+    echo -e "${CYAN}6)${NC} ❌ Sair"
     echo ""
 }
 
 show_script_status() {
     section "Status dos Scripts"
     
-    local scripts=("gui-apps.sh" "shell-apps.sh" "ssh-git-setup.sh" "nerdfonts-install.sh")
+    local scripts=("gui-apps.sh" "shell-apps.sh" "ssh-git-setup.sh" "zsh-setup.sh" "nerdfonts-install.sh")
     
     for script in "${scripts[@]}"; do
         if [[ -f "$SCRIPT_DIR/$script" ]]; then
@@ -279,7 +308,7 @@ main() {
         show_menu
         show_script_status
         
-        read -p "Digite sua escolha [1-5]: " choice
+        read -p "Digite sua escolha [1-6]: " choice
         
         case $choice in
             1)
@@ -308,20 +337,28 @@ main() {
                 ;;
             4)
                 echo ""
-                if ask_yes_no "Executar todos os scripts de instalação?"; then
-                    run_all_scripts
+                if ask_yes_no "Executar setup do Zsh?"; then
+                    run_zsh_setup
                     echo ""
                     read -p "Pressione Enter para continuar..."
                 fi
                 ;;
             5)
                 echo ""
+                if ask_yes_no "Executar todos os scripts de instalação?"; then
+                    run_all_scripts
+                    echo ""
+                    read -p "Pressione Enter para continuar..."
+                fi
+                ;;
+            6)
+                echo ""
                 log "Saindo do instalador..."
                 exit 0
                 ;;
             *)
                 echo ""
-                error "Opção inválida. Digite um número de 1 a 5."
+                error "Opção inválida. Digite um número de 1 a 6."
                 echo ""
                 read -p "Pressione Enter para continuar..."
                 ;;
