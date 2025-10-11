@@ -92,8 +92,22 @@ Este projeto fornece **quatro scripts complementares** para configurar um ambien
 **Segurança:**
 - 1Password CLI
 
-**Shell:**
-- Zsh + Oh My Zsh
+### 🐚 **Shell Avançado** (`zsh-setup.sh`)
+
+**Zsh + Oh My Zsh:**
+- Zsh shell com framework Oh My Zsh
+- Powerlevel10k theme (rápido e customizável)
+- Plugins essenciais de produtividade
+
+**Plugins Inclusos:**
+- zsh-autosuggestions (sugestões automáticas)
+- zsh-syntax-highlighting (destaque de sintaxe)
+- git, docker, kubectl, yarn, npm, composer, aws, terraform
+
+**Integração Inteligente:**
+- Importa variáveis essenciais do ~/.bashrc
+- Mantém compatibilidade com ferramentas existentes
+- Configuração otimizada para desenvolvimento
 
 ### 🔧 **SSH + Git** (`ssh-git-setup.sh`)
 

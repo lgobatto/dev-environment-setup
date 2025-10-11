@@ -192,6 +192,32 @@ install_powerlevel10k() {
     fi
 }
 
+extract_bash_vars() {
+    local bashrc="$HOME/.bashrc"
+    local temp_file="/tmp/bash_vars_$$"
+    
+    if [[ ! -f "$bashrc" ]]; then
+        return 0
+    fi
+    
+    # Extrair variáveis importantes do bashrc
+    log "Extraindo variáveis importantes do ~/.bashrc..."
+    
+    # Buscar por exports e PATHs importantes
+    grep -E '^export [A-Z_]+(=|\s)' "$bashrc" | 
+        grep -E '(VOLTA|SSH_AUTH_SOCK|LANDO|NODE|JAVA|PYTHON|CARGO|COMPOSER)' > "$temp_file" 2>/dev/null || true
+    
+    # Buscar por modificações no PATH
+    grep -E '^(export )?PATH=' "$bashrc" >> "$temp_file" 2>/dev/null || true
+    
+    if [[ -s "$temp_file" ]]; then
+        success "Variáveis importantes detectadas no bashrc"
+        cat "$temp_file" | head -10  # Mostrar algumas das variáveis encontradas
+    fi
+    
+    rm -f "$temp_file"
+}
+
 configure_zshrc() {
     section "Configurando .zshrc"
     
@@ -201,6 +227,9 @@ configure_zshrc() {
         error "Arquivo .zshrc não encontrado!"
         return 1
     fi
+    
+    # Extrair variáveis do bashrc primeiro
+    extract_bash_vars
     
     # Backup do .zshrc original
     cp "$zshrc" "$zshrc.backup-$(date +%Y%m%d_%H%M%S)"
@@ -221,14 +250,26 @@ configure_zshrc() {
         success "Plugins configurados"
     fi
     
-    # Adicionar importação do bashrc se não existir
-    if ! grep -q "source ~/.bashrc" "$zshrc"; then
+    # Adicionar importação inteligente do bashrc se não existir
+    if ! grep -q "Import essential environment variables" "$zshrc"; then
         cat >> "$zshrc" << 'EOF'
 
-# Import bash configuration for environment variables and aliases
-# This ensures compatibility with existing bash setup
+# Import essential environment variables from bash configuration
+# This ensures compatibility with existing bash setup while avoiding bash-specific commands
 if [ -f ~/.bashrc ]; then
-    source ~/.bashrc
+    # Source only environment variables and aliases, skip bash-specific functions
+    source <(grep -E '^(export|alias|PATH=)' ~/.bashrc 2>/dev/null || true)
+fi
+
+# Manually import essential variables from bashrc
+export VOLTA_HOME="$HOME/.volta"
+export PATH="$VOLTA_HOME/bin:$PATH"
+export SSH_AUTH_SOCK=~/.1password/agent.sock
+export PATH="/home/lgobatto/.lando/bin:$PATH"
+
+# Import aliases safely
+if [ -f ~/.bash_aliases ]; then
+    source ~/.bash_aliases
 fi
 
 # Personal aliases
