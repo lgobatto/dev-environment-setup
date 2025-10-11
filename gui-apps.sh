@@ -598,7 +598,7 @@ install_warp_terminal() {
 install_termius() {
     section "Termius SSH Client"
     
-    if command -v termius-app &>/dev/null || [[ -f /usr/share/applications/termius-app.desktop ]]; then
+    if command -v termius &>/dev/null || [[ -f /usr/share/applications/termius-app.desktop ]]; then
         warn "Termius já está instalado"
         return 0
     fi
@@ -612,6 +612,11 @@ install_termius() {
     
     log "Instalando Termius..."
     sudo apt install -y ./termius.deb
+    
+    log "Criando link simbólico para Termius..."
+    if [[ -f /opt/Termius/termius-app ]]; then
+        sudo ln -sf /opt/Termius/termius-app /usr/local/bin/termius
+    fi
     
     rm -f termius.deb
     
