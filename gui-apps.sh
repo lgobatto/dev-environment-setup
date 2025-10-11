@@ -195,6 +195,36 @@ install_vscode() {
     rm -f packages.microsoft.gpg
 }
 
+install_cursor_ai() {
+    section "Cursor AI Editor"
+    
+    if command -v cursor &>/dev/null; then
+        warn "Cursor AI já está instalado"
+        return 0
+    fi
+    
+    if ! ask_yes_no "Instalar Cursor AI Editor?"; then
+        return 0
+    fi
+    
+    log "Baixando Cursor AI..."
+    if wget -O cursor.deb https://api2.cursor.sh/updates/download/golden/linux-x64-deb/cursor/1.7; then
+        log "Instalando Cursor AI..."
+        if sudo dpkg -i cursor.deb; then
+            sudo apt-get install -f -y  # Resolver dependências se necessário
+            success "Cursor AI"
+        else
+            error "Falha ao instalar Cursor AI"
+            rm -f cursor.deb
+            return 1
+        fi
+        rm -f cursor.deb
+    else
+        error "Falha ao baixar Cursor AI"
+        return 1
+    fi
+}
+
 install_chrome() {
     section "Google Chrome"
     
@@ -254,7 +284,7 @@ install_discord() {
 install_slack() {
     section "Slack"
     
-    if command -v slack &>/dev/null; then
+    if command -v slack &>/dev/null || flatpak list | grep -q slack; then
         warn "Slack já está instalado"
         return 0
     fi
@@ -263,18 +293,84 @@ install_slack() {
         return 0
     fi
     
-    log "Baixando Slack..."
-    wget https://downloads.slack-edge.com/releases/linux/4.40.131/prod/x64/slack-desktop-4.40.131-amd64.deb
+    log "Configurando Flatpak se necessário..."
+    if ! command -v flatpak &>/dev/null; then
+        sudo apt install -y flatpak
+        flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+    fi
     
-    log "Instalando Slack..."
-    sudo apt install -y ./slack-desktop-*-amd64.deb
-    
-    rm -f slack-desktop-*.deb
-    
-    if command -v slack &>/dev/null; then
-        success "Slack"
+    log "Instalando Slack via Flatpak..."
+    if flatpak install -y flathub com.slack.Slack; then
+        success "Slack (Flatpak)"
     else
-        error "Slack"
+        error "Falha ao instalar Slack via Flatpak"
+        return 1
+    fi
+}
+
+install_whatsie() {
+    section "Whatsie + WhatsApp Desktop"
+    
+    if flatpak list | grep -q whatsie || flatpak list | grep -q WhatsAppDesktop; then
+        warn "Whatsie ou WhatsApp Desktop já está instalado"
+        return 0
+    fi
+    
+    if ! ask_yes_no "Instalar Whatsie + WhatsApp Desktop (clientes WhatsApp)?"; then
+        return 0
+    fi
+    
+    log "Configurando Flatpak se necessário..."
+    if ! command -v flatpak &>/dev/null; then
+        sudo apt install -y flatpak
+        flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+    fi
+    
+    log "Instalando Whatsie via Flatpak..."
+    if flatpak install -y flathub com.ktechpit.whatsie; then
+        success "Whatsie (Flatpak)"
+    else
+        warn "Falha ao instalar Whatsie"
+    fi
+    
+    log "Instalando WhatsApp Desktop via Flatpak..."
+    if flatpak install -y flathub io.github.mimbrero.WhatsAppDesktop; then
+        success "WhatsApp Desktop (Flatpak)"
+    else
+        warn "Falha ao instalar WhatsApp Desktop"
+    fi
+}
+
+install_gitkraken() {
+    section "GitKraken"
+    
+    if command -v gitkraken &>/dev/null; then
+        warn "GitKraken já está instalado"
+        return 0
+    fi
+    
+    if ! ask_yes_no "Instalar GitKraken (Git GUI)?"; then
+        return 0
+    fi
+    
+    log "Baixando GitKraken..."
+    if wget -O gitkraken.deb https://api.gitkraken.dev/releases/production/linux/x64/active/gitkraken-amd64.deb; then
+        log "Instalando GitKraken..."
+        if sudo dpkg -i gitkraken.deb; then
+            sudo apt-get install -f -y  # Resolver dependências se necessário
+            
+            log "Configurando repositório oficial..."
+            echo "deb [trusted=yes] https://release.axocdn.com/linux/ ./" | sudo tee /etc/apt/sources.list.d/gitkraken.list > /dev/null
+            
+            success "GitKraken"
+        else
+            error "Falha ao instalar GitKraken"
+            rm -f gitkraken.deb
+            return 1
+        fi
+        rm -f gitkraken.deb
+    else
+        error "Falha ao baixar GitKraken"
         return 1
     fi
 }
@@ -673,14 +769,16 @@ main() {
     
     # Aplicações GUI
     install_vscode
-    install_cursor
+    install_cursor_ai
     install_chrome
     install_warp_terminal
     install_discord
     install_slack
+    install_whatsie
     install_spotify
     install_postman
     install_dbeaver
+    install_gitkraken
     install_podman_desktop
     install_1password_desktop
     install_termius
