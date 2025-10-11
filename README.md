@@ -19,10 +19,13 @@ Scripts interativos para configuração completa de ambiente de desenvolvimento 
 
 ## 🎯 Visão Geral
 
-Este projeto fornece **dois scripts complementares** para configurar um ambiente de desenvolvimento completo:
+Este projeto fornece **quatro scripts complementares** para configurar um ambiente de desenvolvimento completo:
 
-1. **`install.sh`** - Instalador principal de ferramentas
-2. **`git-setup.sh`** - Configurador Git com múltiplas identidades
+1. **`install.sh`** - Script master com menu interativo
+2. **`gui-apps.sh`** - Instalador de aplicações gráficas
+3. **`shell-apps.sh`** - Instalador de ferramentas de terminal
+4. **`ssh-git-setup.sh`** - Configurador SSH + Git com múltiplas identidades
+5. **`nerdfonts-install.sh`** - Instalador dedicado de Nerd Fonts
 
 ### ✨ Características
 
@@ -34,49 +37,86 @@ Este projeto fornece **dois scripts complementares** para configurar um ambiente
 - 🎨 **Interface colorida e intuitiva**
 - 🧹 **Limpeza automática** de arquivos temporários
 
-## 🛠️ Ferramentas Suportadas
+## 🔠️ Ferramentas Suportadas
 
-### 📝 **Editores**
+### 🗺️ **Aplicações GUI** (`gui-apps.sh`)
+
+**Editores:**
 - Visual Studio Code
+- Cursor AI Editor
 
-### ⚡ **Runtime & Ferramentas**
-- Volta + Node.js LTS + Yarn
-- PHP 8.3 CLI + Composer  
-- Python3 + pip3
+**Navegadores:**
+- Google Chrome
 
-### 🐳 **Containers & Deploy**
-- Docker Engine + Docker Compose
-- Lando (desenvolvimento local)
-- Podman Desktop (interface gráfica para Docker)
+**Terminais:**
+- Warp Terminal (AI Terminal)
 
-### ☸️ **Kubernetes**
-- kubectl + kubectx/kubens
+**Comunicação:**
+- Discord
+- Slack
 
-### ☁️ **Cloud**
-- AWS CLI v2
+**Mídia:**
+- Spotify
 
-### 🔐 **Segurança**
-- 1Password CLI + SSH Agent
+**Desenvolvimento:**
+- Postman (API Testing)
+- DBeaver CE (Database Manager)
+- Podman Desktop (Container Manager)
 
-### 🎨 **Fontes**
+**Utilitários:**
+- 1Password Desktop
+- Termius SSH Client
+
+**Fontes:**
 - Nerd Fonts (FiraCode, JetBrains Mono, etc.)
 
-### 🔧 **Git**
-- Configuração global
-- Hosts SSH customizados
-- Múltiplas identidades por projeto
-- Integração com 1Password SSH Agent
+### ⚡ **Ferramentas Shell** (`shell-apps.sh`)
+
+**Runtime & Gerenciadores:**
+- Volta + Node.js LTS + Yarn
+- PHP 8.3 CLI + Composer  
+- Python3 + pip3 + ferramentas
+
+**Containers & Deploy:**
+- Docker Engine + Docker Compose
+- Lando (desenvolvimento local)
+
+**Kubernetes & Infrastructure:**
+- kubectl + kubectx/kubens
+- Terraform
+
+**Cloud & APIs:**
+- AWS CLI v2
+- GitHub CLI
+
+**Segurança:**
+- 1Password CLI
+
+**Shell:**
+- Zsh + Oh My Zsh
+
+### 🔧 **SSH + Git** (`ssh-git-setup.sh`)
+
+**SSH + 1Password:**
+- Configuração SSH básica com 1Password Agent
+- Integração automática com chaves SSH
+
+**Git Global:**
+- Configuração global (nome, email, etc.)
+- Configurações básicas (branch, push, editor)
+
+**Múltiplas Identidades:**
+- Hosts SSH customizados (github-empresa, gitlab-empresa)
+- Configuração Git condicional por diretório
+- Suporte a múltiplas chaves SSH
 
 ## 🚀 Instalação Rápida
 
 ### Método 1: One-liner (Recomendado)
 
 ```bash
-# Instalar ferramentas
+# Baixar e executar script master
 curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/install.sh | bash
-
-# Configurar Git (após instalação)
-curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/git-setup.sh | bash
 ```
 
 ### Método 2: Clone + Execute
@@ -86,45 +126,103 @@ curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main
 git clone https://github.com/lgobatto/dev-environment-setup.git
 cd dev-environment-setup
 
-# Executar scripts
+# Executar script master (menu interativo)
 ./install.sh
-./git-setup.sh
+
+# OU executar scripts individuais
+./gui-apps.sh        # Aplicações gráficas
+./shell-apps.sh      # Ferramentas de terminal
+./ssh-git-setup.sh   # SSH + Git config
+```
+
+### Método 3: Scripts Individuais
+
+```bash
+# Apps GUI
+curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/gui-apps.sh | bash
+
+# Apps Shell
+curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/shell-apps.sh | bash
+
+# SSH + Git
+curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/ssh-git-setup.sh | bash
 ```
 
 ## 📚 Uso Detalhado
 
-### 1. Instalador Principal (`install.sh`)
+### 1. Script Master (`install.sh`)
 
-O script principal detecta seu sistema e oferece instalação interativa de todas as ferramentas:
+O script master oferece um **menu interativo** para executar os instaladores especializados:
 
 ```bash
 ./install.sh
 ```
 
-**Fluxo de instalação:**
-1. 🔍 Detecção do sistema operacional
-2. ⚙️ Instalação de dependências básicas
-3. 🎯 Menu interativo para cada ferramenta
-4. 📊 Relatório final com resumo
+**Opções do menu:**
+1. 🗺️ **Apps GUI** - Aplicações gráficas
+2. ⚡ **Apps Shell** - Ferramentas de terminal  
+3. 🔧 **SSH + Git** - Configuração e identidades
+4. 🚀 **Instalar Tudo** - Executar todos os scripts
+5. ❌ **Sair**
 
-**Recursos avançados:**
-- ✅ Pula ferramentas já instaladas
-- ✅ Tratamento de erros com retry
-- ✅ Logs detalhados em `/tmp/dev-installer-*.log`
-- ✅ Compatibilidade com WSL (pula apps gráficos)
+**Recursos:**
+- ✅ Detecção automática do sistema
+- ✅ Status dos scripts disponíveis
+- ✅ Execução inteligente (pula GUI no WSL)
+- ✅ Interface limpa com clear entre operações
 
-### 2. Configurador Git (`git-setup.sh`)
+### 2. Apps GUI (`gui-apps.sh`)
 
-Configura Git com suporte a múltiplas identidades e integração com 1Password:
+Instala aplicações gráficas essenciais:
 
 ```bash
-./git-setup.sh
+./gui-apps.sh
+```
+
+**Fluxo de instalação:**
+1. 🔍 Detecção do sistema
+2. 📦 Instalação de dependências GUI
+3. 🎯 Menu interativo para cada app
+4. 📊 Resumo final
+
+**Recursos avançados:**
+- ✅ Pula no WSL automaticamente
+- ✅ Verifica apps já instalados
+- ✅ Logs em `/tmp/gui-apps-installer-*.log`
+
+### 3. Apps Shell (`shell-apps.sh`)
+
+Instala ferramentas de linha de comando e desenvolvimento:
+
+```bash
+./shell-apps.sh
+```
+
+**Fluxo de instalação:**
+1. 🔍 Detecção do sistema
+2. 📦 Dependências básicas (curl, wget, git, etc.)
+3. ⚡ Runtimes (Node.js, PHP, Python)
+4. 🐳 Containers (Docker, Lando)
+5. ☁️ Cloud tools (AWS CLI, Terraform)
+6. 🐚 Shell (Zsh + Oh My Zsh)
+
+**Recursos:**
+- ✅ Logs em `/tmp/shell-apps-installer-*.log`
+- ✅ Configuração automática de ambientes
+- ✅ Integração entre ferramentas (Volta + Node)
+
+### 4. SSH + Git (`ssh-git-setup.sh`)
+
+Configura SSH, Git e múltiplas identidades:
+
+```bash
+./ssh-git-setup.sh
 ```
 
 **Fluxo de configuração:**
-1. 🔧 Configuração Git global (nome, email, etc.)
-2. 🔐 Setup de hosts SSH customizados
-3. 📁 Configuração condicional por diretório
+1. 🔐 SSH + 1Password integration
+2. 🔧 Configuração Git global
+3. 🏢 Setup de múltiplas identidades
 4. ✅ Testes de conectividade
 
 **Exemplo de uso após configuração:**

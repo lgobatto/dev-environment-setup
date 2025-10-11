@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # =============================================================================
-# 🔧 Configurador Git com Múltiplas Identidades
+# 🔧 Configurador SSH + Git com Múltiplas Identidades
 # =============================================================================
-# Descrição: Script para configurar Git com suporte a múltiplas identidades via SSH
+# Descrição: Script para configurar SSH e Git com suporte a múltiplas identidades via 1Password
 # Autor: Leonardo Gobatto (@lgobatto)
 # Compatibilidade: Ubuntu, Zorin OS, Linux Mint, WSL
 # Versão: 1.0.0
@@ -312,19 +312,75 @@ show_usage_examples() {
 # Menu Principal
 # =============================================================================
 
+configure_ssh_1password() {
+    section "Configuração SSH + 1Password"
+    
+    if ! ask_yes_no "Configurar SSH para uso com 1Password?"; then
+        return 0
+    fi
+    
+    mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
+    
+    # Criar config SSH básico se não existir
+    if [[ ! -f ~/.ssh/config ]]; then
+        cat > ~/.ssh/config << 'EOF'
+# Include 1Password SSH configuration
+Include ~/.ssh/1Password/config
+
+# Default configuration for all hosts
+Host *
+    IdentityAgent ~/.1password/agent.sock
+    AddKeysToAgent yes
+
+# GitHub - Default
+Host github.com
+    HostName github.com
+    User git
+    IdentitiesOnly yes
+
+# GitLab - Default  
+Host gitlab.com
+    HostName gitlab.com
+    User git
+    IdentitiesOnly yes
+EOF
+        chmod 644 ~/.ssh/config
+        success "Configuração SSH criada"
+    else
+        success "Arquivo ~/.ssh/config já existe"
+    fi
+    
+    # Configurar SSH Auth Socket no bashrc se necessário
+    if ! grep -q "SSH_AUTH_SOCK.*1password" ~/.bashrc 2>/dev/null; then
+        echo 'export SSH_AUTH_SOCK=~/.1password/agent.sock' >> ~/.bashrc
+        success "SSH Auth Socket configurado no bashrc"
+    fi
+    
+    # Se usando Zsh, configurar também no .zshrc
+    if [[ -f ~/.zshrc ]] && ! grep -q "SSH_AUTH_SOCK.*1password" ~/.zshrc 2>/dev/null; then
+        echo 'export SSH_AUTH_SOCK=~/.1password/agent.sock' >> ~/.zshrc
+        success "SSH Auth Socket configurado no zshrc"
+    fi
+}
+
 show_menu() {
-    title "🔧 Configurador Git com Múltiplas Identidades"
+    title "🔧 Configurador SSH + Git com Múltiplas Identidades"
     
     echo "Este script irá configurar:"
+    echo ""
+    echo "🔐 SSH + 1Password:"
+    echo "  • Configuração SSH básica com 1Password Agent"
+    echo "  • Integração automática com chaves SSH do 1Password"
     echo ""
     echo "🔧 Git Global:"
     echo "  • Nome e e-mail padrão"
     echo "  • Configurações básicas (branch, push, editor)"
     echo ""
-    echo "🔐 SSH + Múltiplas Identidades:"
+    echo "🏢 Múltiplas Identidades:"
     echo "  • Hosts SSH customizados (github-empresa, gitlab-empresa)"
     echo "  • Configuração Git condicional por diretório"
-    echo "  • Integração com 1Password SSH Agent"
+    echo "  • Suporte a múltiplas chaves SSH"
     echo ""
     echo "📋 Exemplos de uso e testes"
     echo ""
@@ -346,6 +402,7 @@ main() {
     fi
     
     # Executar configurações
+    configure_ssh_1password
     configure_git_global
     setup_ssh_hosts
     test_git_configuration
