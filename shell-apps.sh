@@ -234,7 +234,9 @@ install_docker() {
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
     
     log "Adicionando repositório Docker..."
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    # No Linux Mint, usar o codename do Ubuntu base ao invés do Mint
+    local ubuntu_codename=$(grep UBUNTU_CODENAME /etc/os-release 2>/dev/null | cut -d= -f2 || lsb_release -cs)
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu ${ubuntu_codename} stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
     
     log "Instalando Docker..."
     sudo apt update
@@ -284,11 +286,15 @@ install_python_tools() {
     log "Instalando Python3 e pip3..."
     sudo apt install -y python3 python3-pip python3-dev python3-venv python3-setuptools
     
-    log "Atualizando pip..."
-    python3 -m pip install --user --upgrade pip
+    log "Instalando pipx..."
+    python3 -m pip install --user --break-system-packages pipx
+    python3 -m pipx ensurepath
     
-    log "Instalando ferramentas Python essenciais..."
-    python3 -m pip install --user pipenv virtualenv black isort flake8
+    log "Instalando ferramentas Python essenciais via pipx..."
+    ~/.local/bin/pipx install pipenv 2>/dev/null || true
+    ~/.local/bin/pipx install black 2>/dev/null || true
+    ~/.local/bin/pipx install isort 2>/dev/null || true
+    ~/.local/bin/pipx install flake8 2>/dev/null || true
     
     success "Python3 + pip3 + ferramentas"
 }
@@ -350,7 +356,9 @@ install_terraform() {
     wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
     
     log "Adicionando repositório do Terraform..."
-    echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+    # No Linux Mint, usar o codename do Ubuntu base ao invés do Mint
+    local ubuntu_codename=$(grep UBUNTU_CODENAME /etc/os-release 2>/dev/null | cut -d= -f2 || lsb_release -cs)
+    echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com ${ubuntu_codename} main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
     
     log "Instalando Terraform..."
     sudo apt update && sudo apt install -y terraform
