@@ -244,10 +244,20 @@ configure_zshrc() {
     # Configurar plugins
     if ! grep -q "zsh-autosuggestions" "$zshrc"; then
         # Criar nova configuração de plugins
-        local plugins_config='plugins=(\n  git\n  zsh-autosuggestions\n  zsh-syntax-highlighting\n  docker\n  docker-compose\n  kubectl\n  volta\n  yarn\n  npm\n  composer\n  aws\n  terraform\n  github\n)'
+        local plugins_config='plugins=(\\n  git\\n  zsh-autosuggestions\\n  zsh-syntax-highlighting\\n  docker\\n  docker-compose\\n  kubectl\\n  volta\\n  yarn\\n  npm\\n  composer\\n  aws\\n  terraform\\n  github\\n)'
         
-        sed -i "/^plugins=(/,/^)/c\\$plugins_config" "$zshrc"
+        sed -i "/^plugins=(/,/^)/c\\\$plugins_config" "$zshrc"
         success "Plugins configurados"
+    fi
+    
+    # Adicionar source do oh-my-zsh.sh após a configuração dos plugins
+    if ! grep -q "source \$ZSH/oh-my-zsh.sh" "$zshrc"; then
+        # Encontrar a linha com plugins e adicionar o source logo após
+        sed -i '/^plugins=(/,/^)/ { /^)/a\
+\
+source $ZSH/oh-my-zsh.sh
+}' "$zshrc"
+        success "Source do oh-my-zsh.sh adicionado"
     fi
     
     # Adicionar importação inteligente do bashrc se não existir

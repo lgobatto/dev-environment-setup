@@ -348,7 +348,22 @@ EOF
         chmod 644 ~/.ssh/config
         success "Configuração SSH criada"
     else
-        success "Arquivo ~/.ssh/config já existe"
+        # Arquivo existe - verificar se Include já está presente
+        if ! grep -q "Include ~/.ssh/1Password/config" ~/.ssh/config; then
+            log "Adicionando Include 1Password no início do ~/.ssh/config..."
+            
+            # Fazer backup
+            cp ~/.ssh/config ~/.ssh/config.backup-$(date +%Y%m%d_%H%M%S)
+            
+            # Adicionar Include no início do arquivo
+            echo -e "# Include 1Password SSH configuration\nInclude ~/.ssh/1Password/config\n\n$(cat ~/.ssh/config)" > ~/.ssh/config.tmp
+            mv ~/.ssh/config.tmp ~/.ssh/config
+            chmod 644 ~/.ssh/config
+            
+            success "Include 1Password adicionado ao ~/.ssh/config"
+        else
+            success "Include 1Password já está configurado"
+        fi
     fi
     
     # Configurar SSH Auth Socket no bashrc se necessário
