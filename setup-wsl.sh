@@ -406,13 +406,37 @@ ZSHRCEOF
 
 # Adicionar 1Password SSH Agent se solicitado
 if [ "$INSTALL_1PASSWORD" = "1" ] && [ -n "$WIN_USER" ]; then
+    OP_SOCK="/mnt/c/Users/${WIN_USER}/.1password/agent.sock"
+
+    # 1. SSH_AUTH_SOCK no .zshrc — ativa o agent para todos os comandos SSH da sessao
     cat >> "$HOME/.zshrc" << OPEOF
 
 # ─── 1Password SSH Agent ──────────────────────────────────────────────────────
-# Para usar: habilite Settings > Developer > SSH Agent + "Integrate with WSL" no 1Password
-export SSH_AUTH_SOCK="/mnt/c/Users/${WIN_USER}/.1password/agent.sock"
+# Requer: 1Password > Settings > Developer > SSH Agent + "Integrate with WSL"
+export SSH_AUTH_SOCK="${OP_SOCK}"
 OPEOF
-    ok "1Password SSH agent configurado no .zshrc"
+
+    # 2. ~/.ssh/config — garante que o agente seja usado por qualquer cliente SSH,
+    #    independente de shell (git, rsync, scp, etc.)
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
+    SSH_CONFIG="$HOME/.ssh/config"
+
+    if ! grep -q "1password" "$SSH_CONFIG" 2>/dev/null; then
+        cat >> "$SSH_CONFIG" << SSHEOF
+
+# ─── 1Password SSH Agent ──────────────────────────────────────────────────────
+Host *
+    IdentityAgent ${OP_SOCK}
+SSHEOF
+        chmod 600 "$SSH_CONFIG"
+        ok "~/.ssh/config configurado com IdentityAgent"
+    else
+        ok "~/.ssh/config ja tem entrada do 1Password"
+    fi
+
+    ok "1Password SSH agent configurado (SSH_AUTH_SOCK + ~/.ssh/config)"
+    warn "Certifique-se de habilitar em: 1Password > Settings > Developer > SSH Agent + Integrate with WSL"
 fi
 
 # Adicionar p10k config ao final

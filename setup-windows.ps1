@@ -166,14 +166,18 @@ if (-not $SkipApps) {
 # ── 5. Bootstrap WSL ──────────────────────────────────────────────────────────
 Write-Step "Iniciando setup do WSL2..."
 
+# Montar env vars para passar ao script bash
+$wslEnv = "GIT_NAME='$env:USERNAME'"
+if ($Install1Password) { $wslEnv = "INSTALL_1PASSWORD=1 $wslEnv" }
+
 $setupWsl = Join-Path $PSScriptRoot "setup-wsl.sh"
 if (Test-Path $setupWsl) {
     $wslPath = (wsl wslpath -u "$setupWsl").Trim()
-    wsl -d Ubuntu-24.04 -- bash -c "cp '$wslPath' /tmp/setup-wsl.sh && chmod +x /tmp/setup-wsl.sh && bash /tmp/setup-wsl.sh"
+    wsl -d Ubuntu-24.04 -- bash -c "cp '$wslPath' /tmp/setup-wsl.sh && chmod +x /tmp/setup-wsl.sh && env $wslEnv bash /tmp/setup-wsl.sh"
 } else {
     Write-Warn "setup-wsl.sh nao encontrado. Execute manualmente:"
     Write-Host "  wsl -d Ubuntu-24.04" -ForegroundColor Cyan
-    Write-Host "  curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/setup-wsl.sh | bash" -ForegroundColor Cyan
+    Write-Host "  INSTALL_1PASSWORD=1 curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/setup-wsl.sh | bash" -ForegroundColor Cyan
 }
 
 # ── 6. Conclusao ──────────────────────────────────────────────────────────────
