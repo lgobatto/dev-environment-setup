@@ -1,398 +1,242 @@
-# 🚀 Instalador de Ambiente de Desenvolvimento
+# dev-environment-setup
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Shell](https://img.shields.io/badge/Shell-Bash-green.svg)](https://www.gnu.org/software/bash/)
-[![Platform](https://img.shields.io/badge/Platform-Ubuntu%20%7C%20Zorin%20%7C%20Mint%20%7C%20WSL-blue.svg)](https://ubuntu.com/)
+> Ambiente de desenvolvimento Windows + WSL2, orientado a projetos PHP/WordPress com Lando.
+> Idempotente — seguro para re-executar a qualquer momento.
 
-Scripts interativos para configuração completa de ambiente de desenvolvimento em distribuições baseadas em Ubuntu.
+## Arquitetura: o que fica onde
 
-## 📋 Índice
+A separação correta entre Windows e WSL2 é a chave da performance e da sanidade mental:
 
-- [Visão Geral](#-visão-geral)
-- [Ferramentas Suportadas](#-ferramentas-suportadas)
-- [Instalação Rápida](#-instalação-rápida)
-- [Uso Detalhado](#-uso-detalhado)
-- [Compatibilidade](#-compatibilidade)
-- [Documentação](#-documentação)
-- [Contribuição](#-contribuição)
-- [Licença](#-licença)
+| Windows | WSL2 (Ubuntu 24.04) |
+|---|---|
+| VS Code + Remote WSL | Node.js (via nvm) |
+| Cursor | PHP 8.3 + Composer |
+| Chrome, Windows Terminal | **Docker Engine** (sem Docker Desktop) |
+| 1Password (opcional) | Lando CLI |
+| GitHub Desktop | Claude Code CLI |
+| — | Git, Zsh, GitHub CLI |
 
-## 🎯 Visão Geral
-
-Este projeto fornece **quatro scripts complementares** para configurar um ambiente de desenvolvimento completo:
-
-1. **`install.sh`** - Script master com menu interativo
-2. **`gui-apps.sh`** - Instalador de aplicações gráficas
-3. **`shell-apps.sh`** - Instalador de ferramentas de terminal
-4. **`ssh-git-setup.sh`** - Configurador SSH + Git com múltiplas identidades
-5. **`nerdfonts-install.sh`** - Instalador dedicado de Nerd Fonts
-
-### ✨ Características
-
-- 🎯 **100% Interativo** - você escolhe o que instalar
-- 🐧 **Multi-distro** - Ubuntu, Zorin OS, Linux Mint, WSL
-- 📊 **Logs detalhados** de instalação
-- 🔄 **Detecção automática** de ferramentas já instaladas
-- 🛡️ **Tratamento robusto de erros**
-- 🎨 **Interface colorida e intuitiva**
-- 🧹 **Limpeza automática** de arquivos temporários
-
-## 🔠️ Ferramentas Suportadas
-
-### 🗺️ **Aplicações GUI** (`gui-apps.sh`)
-
-**Editores:**
-- Visual Studio Code
-- Cursor AI Editor
-
-**Navegadores:**
-- Google Chrome
-
-**Terminais:**
-- Warp Terminal (AI Terminal)
-
-**Comunicação:**
-- Discord
-- Slack
-
-**Mídia:**
-- Spotify
-
-**Desenvolvimento:**
-- Postman (API Testing)
-- DBeaver CE (Database Manager)
-- Podman Desktop (Container Manager)
-
-**Utilitários:**
-- 1Password Desktop
-- Termius SSH Client
-
-**Fontes:**
-- Nerd Fonts (FiraCode, JetBrains Mono, etc.)
-
-### ⚡ **Ferramentas Shell** (`shell-apps.sh`)
-
-**Runtime & Gerenciadores:**
-- Volta + Node.js LTS + Yarn
-- PHP 8.3 CLI + Composer  
-- Python3 + pip3 + ferramentas
-
-**Containers & Deploy:**
-- Docker Engine + Docker Compose
-- Lando (desenvolvimento local)
-
-**Kubernetes & Infrastructure:**
-- kubectl + kubectx/kubens
-- Terraform
-
-**Cloud & APIs:**
-- AWS CLI v2
-- GitHub CLI
-
-**Segurança:**
-- 1Password CLI
-
-### 🐚 **Shell Avançado** (`zsh-setup.sh`)
-
-**Zsh + Oh My Zsh:**
-- Zsh shell com framework Oh My Zsh
-- Powerlevel10k theme (rápido e customizável)
-- Plugins essenciais de produtividade
-
-**Plugins Inclusos:**
-- zsh-autosuggestions (sugestões automáticas)
-- zsh-syntax-highlighting (destaque de sintaxe)
-- git, docker, kubectl, yarn, npm, composer, aws, terraform
-
-**Integração Inteligente:**
-- Importa variáveis essenciais do ~/.bashrc
-- Mantém compatibilidade com ferramentas existentes
-- Configuração otimizada para desenvolvimento
-
-### 🔧 **SSH + Git** (`ssh-git-setup.sh`)
-
-**SSH + 1Password:**
-- Configuração SSH básica com 1Password Agent
-- Integração automática com chaves SSH
-
-**Git Global:**
-- Configuração global (nome, email, etc.)
-- Configurações básicas (branch, push, editor)
-
-**Múltiplas Identidades:**
-- Hosts SSH customizados (github-empresa, gitlab-empresa)
-- Configuração Git condicional por diretório
-- Suporte a múltiplas chaves SSH
-
-## 🚀 Instalação Rápida
-
-### Método 1: One-liner (Recomendado)
-
-```bash
-# Baixar e executar script master
-curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/install.sh | bash
-```
-
-### Método 2: Clone + Execute
-
-```bash
-# Clonar repositório
-git clone https://github.com/lgobatto/dev-environment-setup.git
-cd dev-environment-setup
-
-# Executar script master (menu interativo)
-./install.sh
-
-# OU executar scripts individuais
-./gui-apps.sh        # Aplicações gráficas
-./shell-apps.sh      # Ferramentas de terminal
-./ssh-git-setup.sh   # SSH + Git config
-```
-
-### Método 3: Scripts Individuais
-
-```bash
-# Apps GUI
-curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/gui-apps.sh | bash
-
-# Apps Shell
-curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/shell-apps.sh | bash
-
-# SSH + Git
-curl -fsSL https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/ssh-git-setup.sh | bash
-```
-
-## 📚 Uso Detalhado
-
-### 1. Script Master (`install.sh`)
-
-O script master oferece um **menu interativo** para executar os instaladores especializados:
-
-```bash
-./install.sh
-```
-
-**Opções do menu:**
-1. 🗺️ **Apps GUI** - Aplicações gráficas
-2. ⚡ **Apps Shell** - Ferramentas de terminal  
-3. 🔧 **SSH + Git** - Configuração e identidades
-4. 🚀 **Instalar Tudo** - Executar todos os scripts
-5. ❌ **Sair**
-
-**Recursos:**
-- ✅ Detecção automática do sistema
-- ✅ Status dos scripts disponíveis
-- ✅ Execução inteligente (pula GUI no WSL)
-- ✅ Interface limpa com clear entre operações
-
-### 2. Apps GUI (`gui-apps.sh`)
-
-Instala aplicações gráficas essenciais:
-
-```bash
-./gui-apps.sh
-```
-
-**Fluxo de instalação:**
-1. 🔍 Detecção do sistema
-2. 📦 Instalação de dependências GUI
-3. 🎯 Menu interativo para cada app
-4. 📊 Resumo final
-
-**Recursos avançados:**
-- ✅ Pula no WSL automaticamente
-- ✅ Verifica apps já instalados
-- ✅ Logs em `/tmp/gui-apps-installer-*.log`
-
-### 3. Apps Shell (`shell-apps.sh`)
-
-Instala ferramentas de linha de comando e desenvolvimento:
-
-```bash
-./shell-apps.sh
-```
-
-**Fluxo de instalação:**
-1. 🔍 Detecção do sistema
-2. 📦 Dependências básicas (curl, wget, git, etc.)
-3. ⚡ Runtimes (Node.js, PHP, Python)
-4. 🐳 Containers (Docker, Lando)
-5. ☁️ Cloud tools (AWS CLI, Terraform)
-6. 🐚 Shell (Zsh + Oh My Zsh)
-
-**Recursos:**
-- ✅ Logs em `/tmp/shell-apps-installer-*.log`
-- ✅ Configuração automática de ambientes
-- ✅ Integração entre ferramentas (Volta + Node)
-
-### 4. SSH + Git (`ssh-git-setup.sh`)
-
-Configura SSH, Git e múltiplas identidades:
-
-```bash
-./ssh-git-setup.sh
-```
-
-**Fluxo de configuração:**
-1. 🔐 SSH + 1Password integration
-2. 🔧 Configuração Git global
-3. 🏢 Setup de múltiplas identidades
-4. ✅ Testes de conectividade
-
-**Exemplo de uso após configuração:**
-```bash
-# Projeto pessoal (credenciais padrão)
-git clone git@github.com:username/repo.git
-
-# Projeto empresarial (credenciais específicas)
-cd ~/work/empresa/
-git clone git@github-empresa:org/repo.git
-```
-
-## 🐧 Compatibilidade
-
-### Distribuições Suportadas
-- ✅ **Ubuntu** (20.04, 22.04, 24.04)
-- ✅ **Zorin OS** (16, 17)
-- ✅ **Linux Mint** (20, 21)
-- ✅ **Pop!_OS** (20.04, 22.04)
-- ✅ **Elementary OS** (6.x, 7.x)
-- ✅ **WSL** (Windows Subsystem for Linux)
-
-### Requisitos
-- 🐧 Sistema baseado em Ubuntu/Debian
-- 👤 Usuário com privilégios sudo
-- 🌐 Conexão com internet
-- 📦 `curl` ou `wget` (instalado automaticamente)
-
-### Limitações do WSL
-- ❌ Podman Desktop (interface gráfica)
-- ❌ Aplicações GUI em geral
-- ✅ Todos os outros tools funcionam perfeitamente
-
-## 🔧 Configurações Avançadas
-
-### SSH + 1Password
-
-O script configura automaticamente:
-
-```bash
-# ~/.ssh/config
-Host *
-    IdentityAgent ~/.1password/agent.sock
-    AddKeysToAgent yes
-
-# Hosts customizados
-Host github-empresa
-    HostName github.com
-    User git
-    IdentitiesOnly yes
-```
-
-### Git Condicional
-
-Configuração automática baseada em diretório:
-
-```bash
-# ~/.gitconfig
-[includeIf "gitdir:~/work/empresa/"]
-    path = ~/.config/git/config-empresa
-```
-
-### Estrutura de Diretórios Recomendada
+### Por que Docker Engine e não Docker Desktop?
 
 ```
-~/work/
-├── personal/           # Projetos pessoais
-│   └── my-project/
-└── empresa/           # Projetos da empresa
-    └── company-project/
+Docker Desktop  →  GUI, +500MB RAM, I/O lento entre Windows↔WSL2
+Docker Engine   →  CLI lean, rápido, nativo no Linux  ← usamos este
 ```
 
-## 📖 Documentação
-
-### Logs e Troubleshooting
-
-Os scripts geram logs detalhados:
-
-```bash
-# Log do instalador principal
-tail -f /tmp/dev-installer-*.log
-
-# Verificar instalações
-which code volta docker aws kubectl
-```
-
-### Personalização
-
-Você pode modificar os scripts para:
-- ✏️ Adicionar novas ferramentas
-- ⚙️ Alterar configurações padrão
-- 🎨 Customizar interface
-- 📁 Mudar estrutura de diretórios
-
-### Exemplos de Comandos Úteis
-
-```bash
-# Verificar versões instaladas
-./install.sh --version  # (futuro)
-
-# Testar configuração Git
-git config --list --show-origin
-
-# Testar SSH
-ssh -T git@github.com
-ssh -T git@github-empresa
-```
-
-## 🤝 Contribuição
-
-Contribuições são bem-vindas! Por favor:
-
-1. 🍴 Faça um fork do projeto
-2. 🌿 Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. 📝 Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. 📤 Push para a branch (`git push origin feature/AmazingFeature`)
-5. 🔄 Abra um Pull Request
-
-### Diretrizes
-
-- ✅ Mantenha compatibilidade com distribuições suportadas
-- ✅ Adicione tratamento de erros
-- ✅ Documente novas features
-- ✅ Teste em ambiente limpo
-
-## 🐛 Problemas Conhecidos
-
-- 🔄 **Docker**: Necessário logout/login após instalação para usar sem sudo
-- 🔐 **1Password**: SSH Agent precisa ser configurado manualmente no app
-- 🎨 **Nerd Fonts**: Aplicações podem precisar ser reiniciadas
-
-## 📈 Roadmap
-
-- [ ] Suporte para Arch Linux
-- [ ] Configuração de IDEs adicionais
-- [ ] Template de dotfiles
-- [ ] Scripts de backup/restore
-- [ ] GUI opcional com dialog/whiptail
-
-## 🏆 Créditos
-
-Desenvolvido por **Leonardo Gobatto** ([@lgobatto](https://github.com/lgobatto))
-
-Baseado em sessão de configuração de ambiente de desenvolvimento com assistente IA.
-
-## 📄 Licença
-
-Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
+Projetos em `~/projects/` (filesystem Linux nativo EXT4) são lidos pelo Docker diretamente,
+sem passar pela camada de interop Windows → **ganho de I/O de ~10-20x** comparado a projetos em `C:\Users\...`.
 
 ---
 
-<div align="center">
+## Setup rápido
 
-**🌟 Se este projeto te ajudou, considere dar uma estrela! 🌟**
+### 1. Windows (PowerShell como Administrador)
 
-[![GitHub stars](https://img.shields.io/github/stars/lgobatto/dev-environment-setup?style=social)](https://github.com/lgobatto/dev-environment-setup/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/lgobatto/dev-environment-setup?style=social)](https://github.com/lgobatto/dev-environment-setup/network/members)
+```powershell
+# Clonar este repo
+git clone git@github.com:lgobatto/dev-environment-setup.git
+cd dev-environment-setup
 
-</div>
+# Executar (instala WSL2, Ubuntu 24.04, apps Windows, bootstrap WSL)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+.\setup-windows.ps1
+
+# Com 1Password:
+.\setup-windows.ps1 -Install1Password
+
+# Só WSL2 + .wslconfig, sem instalar apps:
+.\setup-windows.ps1 -SkipApps
+```
+
+O script detecta o hardware da máquina e calcula automaticamente a alocação ideal de RAM e CPUs para o WSL2:
+
+| RAM da máquina | WSL2 RAM | CPUs |
+|---|---|---|
+| 8GB  | ~3GB | 4 |
+| 16GB | ~6GB | 4 |
+| 32GB | ~14GB | 4–8 |
+| 64GB | ~26GB | 8 |
+| 96GB+ | ~28GB (máx 32GB) | 8–12 |
+
+### 2. Ubuntu 24.04 (dentro do WSL2)
+
+O `setup-windows.ps1` já executa o `setup-wsl.sh` automaticamente. Se precisar rodar manualmente:
+
+```bash
+bash setup-wsl.sh
+
+# Com opções:
+GIT_NAME="Leonardo Gobatto" GIT_EMAIL="leo@email.com" INSTALL_1PASSWORD=1 bash setup-wsl.sh
+```
+
+### 3. Migrar projetos para o WSL2
+
+```bash
+# Clonar projeto direto no filesystem Linux (~/projects/)
+REPO_URL="git@github.com:org/repo.git" bash migrate-project.sh
+
+# Modo interativo (lista projetos disponíveis)
+bash migrate-project.sh
+```
+
+---
+
+## Scripts
+
+### `setup-windows.ps1` — Windows
+
+Configura o lado Windows do ambiente. Requer PowerShell como Administrador.
+
+**O que faz:**
+- Instala e atualiza WSL2
+- Instala Ubuntu 24.04 LTS
+- Gera `.wslconfig` otimizado com base no hardware detectado
+- Instala apps via `winget`: VS Code, Cursor, Chrome, Windows Terminal, GitHub Desktop, Postman
+- Instala extensões VS Code para WSL (Remote WSL, Remote Explorer)
+- Faz bootstrap do WSL executando `setup-wsl.sh`
+
+**Parâmetros:**
+```powershell
+-Install1Password   # Inclui 1Password e 1Password CLI
+-SkipApps           # Pula instalação de apps (só WSL2 + .wslconfig)
+-SkipWSL            # Pula WSL2 (só instala apps Windows)
+```
+
+---
+
+### `setup-wsl.sh` — WSL2 Ubuntu
+
+Configura o ambiente de desenvolvimento dentro do Ubuntu 24.04. Idempotente.
+
+**O que instala:**
+- **Docker Engine** — sem Docker Desktop, direto no Linux
+- **nvm** + Node.js LTS (sempre última versão)
+- **PHP 8.3** + Composer (via `ppa:ondrej/php`)
+- **Lando CLI** — versão mais recente via GitHub releases
+- **Claude Code CLI** — `@anthropic-ai/claude-code`
+- **GitHub CLI**
+- **Zsh** + Oh My Zsh + Powerlevel10k + plugins (autosuggestions, syntax-highlighting, completions)
+- Git configurado para WSL (`core.autocrlf=input`, `init.defaultBranch=main`)
+
+**Variáveis de ambiente:**
+```bash
+GIT_NAME="Seu Nome"           # Nome para git config
+GIT_EMAIL="seu@email.com"     # Email para git config
+INSTALL_1PASSWORD=1           # Configura 1Password SSH agent
+NODE_VERSION="lts"            # "lts", "latest" ou versão específica "22"
+PHP_VERSION="8.3"             # Versão do PHP
+```
+
+**Aliases instalados:**
+```bash
+dev      # cd ~/projects
+lup      # lando start
+ldn      # lando stop
+ldev     # lando dev
+lbuild   # lando theme-build
+lflush   # lando flush
+lacorn   # lando acorn
+cc       # claude (Claude Code CLI)
+```
+
+---
+
+### `migrate-project.sh` — Migração de projetos
+
+Move (ou clona) projetos do filesystem Windows para `~/projects/` no WSL2 nativo.
+
+```bash
+# Clonar por URL (recomendado — clona com submodules):
+REPO_URL="git@github.com:org/projeto.git" bash migrate-project.sh
+
+# Por nome (copia .env do Windows, verifica submodules):
+PROJECT_NAME="meu-projeto" bash migrate-project.sh
+
+# Interativo:
+bash migrate-project.sh
+```
+
+---
+
+### `ssh-git-setup.sh` — SSH multi-identidade
+
+Configura SSH com múltiplas identidades Git (GitHub pessoal, GitHub empresa, GitLab, etc.)
+com suporte a 1Password SSH agent.
+
+### `nerdfonts-install.sh` — Nerd Fonts
+
+Instala Nerd Fonts (FiraCode, JetBrainsMono, CascadiaCode, etc.) no Linux/WSL2.
+
+---
+
+## 1Password SSH Agent (opcional, mas recomendado)
+
+O 1Password funciona como SSH agent, eliminando a necessidade de gerenciar chaves manualmente.
+
+**Setup:**
+1. Instale o 1Password no Windows (`setup-windows.ps1 -Install1Password`)
+2. Abra 1Password → Settings → Developer
+3. Ative **"SSH Agent"**
+4. Ative **"Integrate with WSL"**
+5. No `~/.zshrc`, descomente a linha do `SSH_AUTH_SOCK`
+
+---
+
+## Testar sem risco (Multipass)
+
+Para validar o `setup-wsl.sh` em uma VM descartável antes de rodar no sistema real:
+
+```powershell
+# Instalar Multipass
+winget install Canonical.Multipass
+
+# Criar VM Ubuntu 24.04
+multipass launch 24.04 --name dev-test --cpus 4 --memory 8G --disk 30G
+multipass shell dev-test
+```
+
+```bash
+# Dentro da VM: testar o script
+bash /mnt/c/Users/SEU_USUARIO/Work/dev-environment-setup/setup-wsl.sh
+
+# Destruir sem rastro quando terminar
+# (no PowerShell): multipass delete dev-test && multipass purge
+```
+
+---
+
+## Compatibilidade
+
+| Script | Windows (WSL2) | Linux nativo | macOS |
+|---|---|---|---|
+| `setup-windows.ps1` | ✅ | ❌ | ❌ |
+| `setup-wsl.sh` | ✅ | ✅ | ⚠️ parcial |
+| `migrate-project.sh` | ✅ | ✅ | ✅ |
+| `ssh-git-setup.sh` | ✅ | ✅ | ✅ |
+| `nerdfonts-install.sh` | ✅ WSL2 | ✅ | ❌ |
+
+---
+
+## Estrutura do repositório
+
+```
+dev-environment-setup/
+├── setup-windows.ps1       # Setup Windows: WSL2 + apps via winget
+├── setup-wsl.sh            # Setup WSL2: Docker Engine, Node, PHP, Lando, Claude Code
+├── migrate-project.sh      # Migrar projetos para ~/projects/ no WSL2
+├── ssh-git-setup.sh        # SSH multi-identidade com 1Password
+├── nerdfonts-install.sh    # Instalador de Nerd Fonts
+├── ZSH_SETUP.md            # Guia pós-instalação do Powerlevel10k
+├── archive/                # Scripts legados (referência histórica)
+│   ├── install.sh
+│   ├── gui-apps.sh
+│   ├── shell-apps.sh
+│   └── zsh-setup.sh
+└── README.md
+```
+
+---
+
+## License
+
+MIT © [Leonardo Gobatto](https://github.com/lgobatto)
