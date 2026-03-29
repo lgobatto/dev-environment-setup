@@ -69,8 +69,9 @@ if (-not $SkipWSL) {
     wsl --update 2>&1 | Out-Null
     Write-OK "WSL atualizado"
 
-    $distros = wsl --list --quiet 2>$null
-    if (-not ($distros | Where-Object { $_ -match "Ubuntu-24.04" })) {
+    # wsl --list retorna UTF-16 com null bytes entre chars — strip necessario
+    $distros = (wsl --list --quiet 2>&1) -replace "`0", "" -join " "
+    if ($distros -notmatch "Ubuntu-24\.04") {
         Write-Warn "Instalando Ubuntu 24.04 LTS..."
         wsl --install -d Ubuntu-24.04
         Write-Warn "Configure usuario/senha no Ubuntu e execute novamente."
