@@ -242,27 +242,33 @@ fi
 # ── 6. Lando CLI ─────────────────────────────────────────────────────────────
 step "Instalando Lando CLI..."
 #
-# Lando no Linux usa Docker Engine diretamente — sem Docker Desktop.
-# Projetos em ~/projects (filesystem Linux nativo) → I/O direto, sem overhead.
+# A partir da v3.21, Lando não distribui mais via .deb no GitHub releases.
+# Método oficial para WSL2: https://docs.lando.dev/install/wsl.html
+#   - Instala em ~/.lando/bin/lando (sem sudo)
+#   - Requer `eval "$(lando shellenv)"` para configurar PATH + shell integration
 #
-if has lando; then
-    ok "Lando já instalado: $(lando version 2>/dev/null || echo 'versão desconhecida')"
-else
-    # Buscar URL do .deb mais recente via GitHub API
-    LANDO_DEB_URL=$(curl -fsSL \
-        "https://api.github.com/repos/lando/lando/releases/latest" \
-        | jq -r '.assets[] | select(.name | test("lando-x64-v.*\\.deb$")) | .browser_download_url' \
-        | head -1)
+LANDO_BIN="$HOME/.lando/bin/lando"
 
-    if [ -z "$LANDO_DEB_URL" ]; then
-        fail "Não foi possível encontrar o .deb do Lando via GitHub API"
-        warn "Instale manualmente: https://docs.lando.dev/install/linux"
+if [ -f "$LANDO_BIN" ] || has lando; then
+    ok "Lando já instalado: $(lando version 2>/dev/null || $LANDO_BIN version 2>/dev/null || echo 'versão desconhecida')"
+else
+    info "Baixando setup-lando.sh..."
+    curl -fsSL https://get.lando.dev/setup-lando.sh -o /tmp/setup-lando.sh
+    chmod +x /tmp/setup-lando.sh
+
+    # --yes pula a confirmação interativa; --dest instala em ~/.lando/bin
+    bash /tmp/setup-lando.sh --yes --dest "$HOME/.lando/bin" 2>&1
+    rm -f /tmp/setup-lando.sh
+
+    if [ -f "$LANDO_BIN" ]; then
+        # Carregar shellenv nesta sessão para usar lando imediatamente
+        set +u
+        eval "$("$LANDO_BIN" shellenv 2>/dev/null)" 2>/dev/null || true
+        set -u
+        ok "Lando instalado: $(lando version 2>/dev/null || echo 'v3.x')"
     else
-        info "Baixando Lando de: $LANDO_DEB_URL"
-        curl -fsSL "$LANDO_DEB_URL" -o /tmp/lando.deb
-        sudo dpkg -i /tmp/lando.deb
-        rm /tmp/lando.deb
-        ok "Lando instalado: $(lando version 2>/dev/null)"
+        fail "Lando não foi instalado corretamente"
+        warn "Instale manualmente: /bin/bash -c \"\$(curl -fsSL https://get.lando.dev/setup-lando.sh)\""
     fi
 fi
 
@@ -373,6 +379,10 @@ source \$ZSH/oh-my-zsh.sh
 export NVM_DIR="\$HOME/.nvm"
 [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
 [ -s "\$NVM_DIR/bash_completion" ] && \. "\$NVM_DIR/bash_completion"
+
+# ─── Lando shellenv ───────────────────────────────────────────────────────────
+# Adiciona ~/.lando/bin ao PATH e configura integração do shell
+[[ -f "\$HOME/.lando/bin/lando" ]] && eval "\$(\$HOME/.lando/bin/lando shellenv 2>/dev/null)" 2>/dev/null || true
 
 # ─── Navegação ────────────────────────────────────────────────────────────────
 alias dev="cd ~/projects"
