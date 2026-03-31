@@ -160,6 +160,10 @@ else
     fi
 fi
 
+# nvm usa variáveis internas não inicializadas — desabilitar nounset temporariamente
+# para evitar "unbound variable" com set -u ativo
+set +u
+
 # Carregar nvm nesta sessão
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
@@ -178,6 +182,8 @@ else
     nvm use "$NODE_VERSION"
     nvm alias default "$NODE_VERSION"
 fi
+
+set -u
 
 ok "Node.js: $(node --version) | npm: $(npm --version)"
 
