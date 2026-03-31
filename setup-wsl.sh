@@ -436,7 +436,8 @@ if [ "$INSTALL_1PASSWORD" = "1" ] && [ -n "$WIN_USER" ]; then
     chmod 700 "$HOME/.ssh"
     SSH_CONFIG="$HOME/.ssh/config"
     if ! grep -q "1password" "$SSH_CONFIG" 2>/dev/null; then
-        printf '\n# 1Password SSH Agent\nHost *\n    IdentityAgent %s\n' "$OP_SOCK" >> "$SSH_CONFIG"
+        # Aspas ao redor do path — necessario quando WIN_USER tem espacos (ex: "Leonardo Gobatto")
+        printf '\n# 1Password SSH Agent\nHost *\n    IdentityAgent "%s"\n' "$OP_SOCK" >> "$SSH_CONFIG"
         chmod 600 "$SSH_CONFIG"
         ok "~/.ssh/config: IdentityAgent configurado"
     else
