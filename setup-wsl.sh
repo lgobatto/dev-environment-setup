@@ -261,11 +261,9 @@ else
     rm -f /tmp/setup-lando.sh
 
     if [ -f "$LANDO_BIN" ]; then
-        # Carregar shellenv nesta sessão para usar lando imediatamente
-        set +u
-        eval "$("$LANDO_BIN" shellenv 2>/dev/null)" 2>/dev/null || true
-        set -u
-        ok "Lando instalado: $(lando version 2>/dev/null || echo 'v3.x')"
+        # Adicionar ao PATH desta sessão para usar lando imediatamente
+        export PATH="$HOME/.lando/bin:$PATH"
+        ok "Lando instalado: $($LANDO_BIN version 2>/dev/null || echo 'v3.x')"
     else
         fail "Lando não foi instalado corretamente"
         warn "Instale manualmente: /bin/bash -c \"\$(curl -fsSL https://get.lando.dev/setup-lando.sh)\""
@@ -380,9 +378,9 @@ export NVM_DIR="\$HOME/.nvm"
 [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
 [ -s "\$NVM_DIR/bash_completion" ] && \. "\$NVM_DIR/bash_completion"
 
-# ─── Lando shellenv ───────────────────────────────────────────────────────────
-# Adiciona ~/.lando/bin ao PATH e configura integração do shell
-[[ -f "\$HOME/.lando/bin/lando" ]] && eval "\$(\$HOME/.lando/bin/lando shellenv 2>/dev/null)" 2>/dev/null || true
+# ─── Lando ────────────────────────────────────────────────────────────────────
+# Instalado em ~/.lando/bin pelo setup-lando.sh oficial (WSL/Linux)
+export PATH="\$HOME/.lando/bin:\$PATH"
 
 # ─── Navegação ────────────────────────────────────────────────────────────────
 alias dev="cd ~/projects"
