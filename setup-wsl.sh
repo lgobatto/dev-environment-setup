@@ -350,115 +350,101 @@ if [ "$INSTALL_1PASSWORD" = "1" ]; then
     WIN_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n' || echo "")
 fi
 
-cat > "$HOME/.zshrc" << ZSHRCEOF
-# ─── Powerlevel10k instant prompt ─────────────────────────────────────────────
-if [[ -r "\${XDG_CACHE_HOME:-\$HOME/.cache}/p10k-instant-prompt-\${(%):-%n}.zsh" ]]; then
-    source "\${XDG_CACHE_HOME:-\$HOME/.cache}/p10k-instant-prompt-\${(%):-%n}.zsh"
+# Usar Python para escrever o .zshrc — evita problemas de CRLF (script pode ter
+# vindo do Windows) e de escaping em heredocs com caracteres Unicode.
+OP_SOCK_LINE=""
+if [ "$INSTALL_1PASSWORD" = "1" ] && [ -n "$WIN_USER" ]; then
+    OP_SOCK_LINE="export SSH_AUTH_SOCK=\"/mnt/c/Users/${WIN_USER}/.1password/agent.sock\""
 fi
 
-# ─── Oh My Zsh ────────────────────────────────────────────────────────────────
-export ZSH="\$HOME/.oh-my-zsh"
-ZSH_THEME="powerlevel10k/powerlevel10k"
+python3 - "$HOME" "$OP_SOCK_LINE" << 'PYEOF'
+import sys, os
 
-plugins=(
-    git
-    docker
-    docker-compose
-    npm
-    composer
-    zsh-autosuggestions
-    zsh-syntax-highlighting
-    zsh-completions
+home      = sys.argv[1]
+op_line   = sys.argv[2] if len(sys.argv) > 2 else ""
+zshrc     = os.path.join(home, ".zshrc")
+
+op_block = ""
+if op_line:
+    op_block = "\n# === 1Password SSH Agent ============================================\n" \
+               "# Requer: 1Password > Settings > Developer > SSH Agent + Integrate with WSL\n" \
+               + op_line + "\n"
+
+content = (
+    "# Powerlevel10k instant prompt -- deve ficar no topo do .zshrc\n"
+    'if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then\n'
+    '    source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"\n'
+    "fi\n\n"
+    "# === Oh My Zsh ================================================================\n"
+    'export ZSH="$HOME/.oh-my-zsh"\n'
+    'ZSH_THEME="powerlevel10k/powerlevel10k"\n\n'
+    "plugins=(\n"
+    "    git\n    docker\n    docker-compose\n    npm\n    composer\n"
+    "    zsh-autosuggestions\n    zsh-syntax-highlighting\n    zsh-completions\n"
+    ")\n\n"
+    "source $ZSH/oh-my-zsh.sh\n\n"
+    "# === nvm ======================================================================\n"
+    'export NVM_DIR="$HOME/.nvm"\n'
+    '[ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"\n'
+    '[ -s "$NVM_DIR/bash_completion" ] && \\. "$NVM_DIR/bash_completion"\n\n'
+    "# === Lando ====================================================================\n"
+    '# Instalado em ~/.lando/bin pelo setup-lando.sh oficial (WSL/Linux)\n'
+    'export PATH="$HOME/.lando/bin:$PATH"\n\n'
+    "# === Navegacao ================================================================\n"
+    'alias dev="cd ~/projects"\n'
+    'alias la="ls -lah --color=auto"\n'
+    'alias ll="ls -lh --color=auto"\n\n'
+    "# === Git ======================================================================\n"
+    'alias gs="git status"\n'
+    'alias gco="git checkout"\n'
+    'alias gpl="git pull --recurse-submodules"\n'
+    'alias gps="git push"\n'
+    'alias gcm="git commit -m"\n\n'
+    "# === Docker ===================================================================\n"
+    'alias dcu="docker compose up"\n'
+    'alias dcd="docker compose down"\n'
+    'alias dcl="docker compose logs -f"\n'
+    "alias dps=\"docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'\"\n\n"
+    "# === Lando aliases ============================================================\n"
+    'alias lup="lando start"\n'
+    'alias ldn="lando stop"\n'
+    'alias ldev="lando dev"\n'
+    'alias lbuild="lando theme-build"\n'
+    'alias lflush="lando flush"\n'
+    'alias lacorn="lando acorn"\n'
+    'alias lssh="lando ssh"\n\n'
+    "# === Claude Code ==============================================================\n"
+    'alias cc="claude"\n\n'
+    "# === Utilitarios ==============================================================\n"
+    'alias reload="source ~/.zshrc"\n'
+    'alias zshrc="code ~/.zshrc"\n'
+    + op_block +
+    "\n# === Powerlevel10k ============================================================\n"
+    "[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh\n"
 )
 
-source \$ZSH/oh-my-zsh.sh
+with open(zshrc, "w", encoding="utf-8", newline="\n") as f:
+    f.write(content)
 
-# ─── nvm ──────────────────────────────────────────────────────────────────────
-export NVM_DIR="\$HOME/.nvm"
-[ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
-[ -s "\$NVM_DIR/bash_completion" ] && \. "\$NVM_DIR/bash_completion"
+print(f"  .zshrc escrito: {zshrc} ({content.count(chr(10))} linhas, LF, UTF-8)")
+PYEOF
 
-# ─── Lando ────────────────────────────────────────────────────────────────────
-# Instalado em ~/.lando/bin pelo setup-lando.sh oficial (WSL/Linux)
-export PATH="\$HOME/.lando/bin:\$PATH"
-
-# ─── Navegação ────────────────────────────────────────────────────────────────
-alias dev="cd ~/projects"
-alias la="ls -lah --color=auto"
-alias ll="ls -lh --color=auto"
-
-# ─── Git ──────────────────────────────────────────────────────────────────────
-alias gs="git status"
-alias gco="git checkout"
-alias gpl="git pull --recurse-submodules"
-alias gps="git push"
-alias gcm="git commit -m"
-
-# ─── Docker ───────────────────────────────────────────────────────────────────
-alias dcu="docker compose up"
-alias dcd="docker compose down"
-alias dcl="docker compose logs -f"
-alias dps="docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
-
-# ─── Lando ────────────────────────────────────────────────────────────────────
-alias lup="lando start"
-alias ldn="lando stop"
-alias ldev="lando dev"
-alias lbuild="lando theme-build"
-alias lflush="lando flush"
-alias lacorn="lando acorn"
-alias lssh="lando ssh"
-
-# ─── Claude Code ──────────────────────────────────────────────────────────────
-alias cc="claude"
-
-# ─── Utilitários ──────────────────────────────────────────────────────────────
-alias reload="source ~/.zshrc"
-alias zshrc="code ~/.zshrc"
-
-ZSHRCEOF
-
-# Adicionar 1Password SSH Agent se solicitado
+# 1Password SSH config (independente de shell)
 if [ "$INSTALL_1PASSWORD" = "1" ] && [ -n "$WIN_USER" ]; then
     OP_SOCK="/mnt/c/Users/${WIN_USER}/.1password/agent.sock"
-
-    # 1. SSH_AUTH_SOCK no .zshrc — ativa o agent para todos os comandos SSH da sessao
-    cat >> "$HOME/.zshrc" << OPEOF
-
-# ─── 1Password SSH Agent ──────────────────────────────────────────────────────
-# Requer: 1Password > Settings > Developer > SSH Agent + "Integrate with WSL"
-export SSH_AUTH_SOCK="${OP_SOCK}"
-OPEOF
-
-    # 2. ~/.ssh/config — garante que o agente seja usado por qualquer cliente SSH,
-    #    independente de shell (git, rsync, scp, etc.)
     mkdir -p "$HOME/.ssh"
     chmod 700 "$HOME/.ssh"
     SSH_CONFIG="$HOME/.ssh/config"
-
     if ! grep -q "1password" "$SSH_CONFIG" 2>/dev/null; then
-        cat >> "$SSH_CONFIG" << SSHEOF
-
-# ─── 1Password SSH Agent ──────────────────────────────────────────────────────
-Host *
-    IdentityAgent ${OP_SOCK}
-SSHEOF
+        printf '\n# 1Password SSH Agent\nHost *\n    IdentityAgent %s\n' "$OP_SOCK" >> "$SSH_CONFIG"
         chmod 600 "$SSH_CONFIG"
-        ok "~/.ssh/config configurado com IdentityAgent"
+        ok "~/.ssh/config: IdentityAgent configurado"
     else
-        ok "~/.ssh/config ja tem entrada do 1Password"
+        ok "~/.ssh/config: 1Password ja configurado"
     fi
-
-    ok "1Password SSH agent configurado (SSH_AUTH_SOCK + ~/.ssh/config)"
-    warn "Certifique-se de habilitar em: 1Password > Settings > Developer > SSH Agent + Integrate with WSL"
+    ok "1Password SSH agent configurado"
+    warn "Habilite em: 1Password > Settings > Developer > SSH Agent + Integrate with WSL"
 fi
-
-# Adicionar p10k config ao final
-cat >> "$HOME/.zshrc" << 'P10KEOF'
-
-# ─── Powerlevel10k ───────────────────────────────────────────────────────────
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-P10KEOF
 
 ok ".zshrc configurado"
 
