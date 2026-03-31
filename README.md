@@ -88,10 +88,12 @@ bash migrate-project.sh
 Configura o lado Windows do ambiente. Requer PowerShell como Administrador.
 
 **O que faz:**
+- Solicita interativamente nome e email para `git config` (aplicados no WSL2)
 - Instala e atualiza WSL2
 - Instala Ubuntu 24.04 LTS
 - Gera `.wslconfig` otimizado com base no hardware detectado
-- Instala apps via `winget`: VS Code, Cursor, Chrome, Windows Terminal, GitHub Desktop, Postman
+- Instala apps via `winget`: VS Code, Cursor, Chrome, Windows Terminal, GitHub Desktop, Postman, **JetBrains Mono Nerd Font**
+- Configura automaticamente a fonte JetBrainsMono Nerd Font no Windows Terminal
 - Instala extensões VS Code para WSL (Remote WSL, Remote Explorer)
 - Faz bootstrap do WSL executando `setup-wsl.sh`
 
@@ -178,7 +180,7 @@ O 1Password funciona como SSH agent, eliminando a necessidade de gerenciar chave
 2. Abra 1Password → Settings → Developer
 3. Ative **"SSH Agent"**
 4. Ative **"Integrate with WSL"**
-5. No `~/.zshrc`, descomente a linha do `SSH_AUTH_SOCK`
+5. O `SSH_AUTH_SOCK` e `~/.ssh/config` são configurados automaticamente no WSL2
 
 ---
 

@@ -53,7 +53,16 @@ Write-Host "    RAM:  ${totalRAM}GB  ->  ${allocRAM}GB para WSL2 (${pctRAM}%)" -
 Write-Host "    CPUs: ${totalCPU} logicas  ->  ${allocCPU} para WSL2" -ForegroundColor DarkGray
 Write-Host ""
 
-# ── 2. WSL2 + Ubuntu 24.04 ────────────────────────────────────────────────────
+# ── 2. Configuracao do Git (interativo) ───────────────────────────────────────
+Write-Step "Configuracao do Git (sera aplicado no WSL2)..."
+Write-Host ""
+$gitName  = Read-Host "  Seu nome completo (ex: Leonardo Gobatto)"
+$gitEmail = Read-Host "  Seu email Git      (ex: leo@brisa.com)"
+Write-Host ""
+if ($gitName)  { Write-OK "Nome: $gitName" }  else { Write-Warn "Nome em branco — configure depois: git config --global user.name 'Seu Nome'" }
+if ($gitEmail) { Write-OK "Email: $gitEmail" } else { Write-Warn "Email em branco — configure depois: git config --global user.email 'seu@email.com'" }
+
+# ── 3. WSL2 + Ubuntu 24.04 ───────────────────────────────────────────────────
 if (-not $SkipWSL) {
     Write-Step "Configurando WSL2..."
 
@@ -126,13 +135,14 @@ if (-not $SkipApps) {
     Write-Step "Instalando apps Windows via winget..."
 
     $apps = [ordered]@{
-        "Microsoft.PowerShell"       = "PowerShell 7"
-        "Microsoft.WindowsTerminal"  = "Windows Terminal"
-        "Microsoft.VisualStudioCode" = "VS Code"
-        "Anysphere.Cursor"           = "Cursor"
-        "Google.Chrome"              = "Google Chrome"
-        "GitHub.GitHubDesktop"       = "GitHub Desktop"
-        "Postman.Postman"            = "Postman"
+        "Microsoft.PowerShell"        = "PowerShell 7"
+        "Microsoft.WindowsTerminal"   = "Windows Terminal"
+        "Microsoft.VisualStudioCode"  = "VS Code"
+        "Anysphere.Cursor"            = "Cursor"
+        "Google.Chrome"               = "Google Chrome"
+        "GitHub.GitHubDesktop"        = "GitHub Desktop"
+        "Postman.Postman"             = "Postman"
+        "DEVCOM.JetBrainsMonoNerdFont" = "JetBrains Mono Nerd Font"
     }
 
     if ($Install1Password) {
@@ -161,13 +171,45 @@ if (-not $SkipApps) {
         code --install-extension $ext --force 2>&1 | Out-Null
         Write-OK $ext
     }
+
+    # Configurar fonte JetBrains Mono Nerd Font no Windows Terminal
+    Write-Step "Configurando fonte no Windows Terminal..."
+    $wtSettingsPaths = @(
+        "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
+        "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json"
+    )
+    $wtConfigured = $false
+    foreach ($wtSettings in $wtSettingsPaths) {
+        if (Test-Path $wtSettings) {
+            try {
+                $wt = Get-Content $wtSettings -Raw | ConvertFrom-Json
+                if (-not $wt.profiles.defaults.PSObject.Properties['font']) {
+                    $wt.profiles.defaults | Add-Member -NotePropertyName 'font' -NotePropertyValue ([PSCustomObject]@{ face = "JetBrainsMono Nerd Font" }) -Force
+                } else {
+                    $wt.profiles.defaults.font.face = "JetBrainsMono Nerd Font"
+                }
+                $wt | ConvertTo-Json -Depth 20 | Set-Content $wtSettings -Encoding UTF8
+                Write-OK "Windows Terminal: fonte JetBrainsMono Nerd Font configurada"
+                $wtConfigured = $true
+                break
+            } catch {
+                Write-Warn "Nao foi possivel editar automaticamente o settings.json do Windows Terminal."
+            }
+        }
+    }
+    if (-not $wtConfigured) {
+        Write-Warn "Windows Terminal settings.json nao encontrado. Configure manualmente:"
+        Write-Host "    Settings > Defaults > Appearance > Font face: JetBrainsMono Nerd Font" -ForegroundColor DarkGray
+    }
 }
 
 # ── 5. Bootstrap WSL ──────────────────────────────────────────────────────────
 Write-Step "Iniciando setup do WSL2..."
 
 # Montar env vars para passar ao script bash
-$wslEnv = "GIT_NAME='$env:USERNAME'"
+$safeGitName  = if ($gitName)  { $gitName }  else { $env:USERNAME }
+$safeGitEmail = if ($gitEmail) { $gitEmail } else { "" }
+$wslEnv = "GIT_NAME='$safeGitName' GIT_EMAIL='$safeGitEmail'"
 if ($Install1Password) { $wslEnv = "INSTALL_1PASSWORD=1 $wslEnv" }
 
 $setupWsl = Join-Path $PSScriptRoot "setup-wsl.sh"
@@ -194,9 +236,9 @@ Write-Host "  OK  WSL2: Node, PHP, Docker Engine, Lando, Claude Code" -Foregroun
 Write-Host ""
 Write-Host "  Proximos passos:" -ForegroundColor White
 Write-Host "    1. Abra o Ubuntu 24.04 pelo Windows Terminal" -ForegroundColor White
-Write-Host "    2. git config --global user.name 'Seu Nome'" -ForegroundColor White
-Write-Host "    3. git config --global user.email 'seu@email.com'" -ForegroundColor White
-Write-Host "    4. gh auth login" -ForegroundColor White
+Write-Host "    2. Execute: exec zsh" -ForegroundColor White
+Write-Host "    3. Configure Powerlevel10k: p10k configure" -ForegroundColor White
+Write-Host "    4. Autentique o GitHub CLI: gh auth login" -ForegroundColor White
 Write-Host "    5. cd ~/projects && git clone git@github.com:BrisaBR/brisausa.git --recurse-submodules" -ForegroundColor White
 Write-Host "    6. cd brisausa && lando start" -ForegroundColor White
 Write-Host ""
@@ -204,6 +246,5 @@ Write-Host ""
 if ($Install1Password) {
     Write-Host "  1Password SSH Agent:" -ForegroundColor Cyan
     Write-Host "    1Password > Settings > Developer > SSH Agent + Integrate with WSL" -ForegroundColor White
-    Write-Host "    Depois edite ~/.zshrc e descomente SSH_AUTH_SOCK" -ForegroundColor White
     Write-Host ""
 }
