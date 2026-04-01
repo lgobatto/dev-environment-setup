@@ -166,6 +166,25 @@ if (-not $SkipApps) {
         }
     }
 
+    # Habilitar Windows OpenSSH Agent service — necessario para 1Password SSH Agent
+    # e para que ssh.exe (usado pelo Git no WSL2) possa acessar as chaves
+    Write-Step "Habilitando Windows OpenSSH Authentication Agent..."
+    $sshAgent = Get-Service ssh-agent -ErrorAction SilentlyContinue
+    if ($null -ne $sshAgent) {
+        if ($sshAgent.StartType -eq 'Disabled') {
+            Set-Service ssh-agent -StartupType Automatic
+            Write-OK "ssh-agent: StartupType -> Automatic"
+        }
+        if ($sshAgent.Status -ne 'Running') {
+            Start-Service ssh-agent
+            Write-OK "ssh-agent: iniciado"
+        } else {
+            Write-OK "ssh-agent: ja rodando"
+        }
+    } else {
+        Write-Warn "ssh-agent nao encontrado — instale OpenSSH via 'Recursos Opcionais do Windows'"
+    }
+
     Write-Step "Instalando extensoes VS Code para WSL..."
     foreach ($ext in @("ms-vscode-remote.remote-wsl", "ms-vscode-remote.vscode-remote-extensionpack", "ms-vscode.remote-explorer")) {
         code --install-extension $ext --force 2>&1 | Out-Null
@@ -245,6 +264,9 @@ Write-Host ""
 
 if ($Install1Password) {
     Write-Host "  1Password SSH Agent:" -ForegroundColor Cyan
-    Write-Host "    1Password > Settings > Developer > SSH Agent + Integrate with WSL" -ForegroundColor White
+    Write-Host "    1. Abra 1Password > Settings > Developer" -ForegroundColor White
+    Write-Host "    2. Ative: 'Use the SSH Agent'" -ForegroundColor White
+    Write-Host "    3. Adicione sua chave SSH do GitHub ao 1Password" -ForegroundColor White
+    Write-Host "    4. Git no WSL ja usa ssh.exe (core.sshCommand configurado)" -ForegroundColor White
     Write-Host ""
 }

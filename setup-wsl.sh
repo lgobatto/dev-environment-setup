@@ -344,31 +344,14 @@ step "Configurando .zshrc..."
 # Backup do .zshrc existente
 [ -f "$HOME/.zshrc" ] && cp "$HOME/.zshrc" "$HOME/.zshrc.backup.$(date +%s)"
 
-# Detectar Windows username para 1Password socket path
-WIN_USER=""
-if [ "$INSTALL_1PASSWORD" = "1" ]; then
-    WIN_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n' || echo "")
-fi
-
 # Usar Python para escrever o .zshrc — evita problemas de CRLF (script pode ter
 # vindo do Windows) e de escaping em heredocs com caracteres Unicode.
-OP_SOCK_LINE=""
-if [ "$INSTALL_1PASSWORD" = "1" ] && [ -n "$WIN_USER" ]; then
-    OP_SOCK_LINE="export SSH_AUTH_SOCK=\"/mnt/c/Users/${WIN_USER}/.1password/agent.sock\""
-fi
 
-python3 - "$HOME" "$OP_SOCK_LINE" << 'PYEOF'
+python3 - "$HOME" << 'PYEOF'
 import sys, os
 
-home      = sys.argv[1]
-op_line   = sys.argv[2] if len(sys.argv) > 2 else ""
-zshrc     = os.path.join(home, ".zshrc")
-
-op_block = ""
-if op_line:
-    op_block = "\n# === 1Password SSH Agent ============================================\n" \
-               "# Requer: 1Password > Settings > Developer > SSH Agent + Integrate with WSL\n" \
-               + op_line + "\n"
+home  = sys.argv[1]
+zshrc = os.path.join(home, ".zshrc")
 
 content = (
     "# Powerlevel10k instant prompt -- deve ficar no topo do .zshrc\n"
@@ -418,7 +401,6 @@ content = (
     "# === Utilitarios ==============================================================\n"
     'alias reload="source ~/.zshrc"\n'
     'alias zshrc="code ~/.zshrc"\n'
-    + op_block +
     "\n# === Powerlevel10k ============================================================\n"
     "[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh\n"
 )
@@ -429,22 +411,19 @@ with open(zshrc, "w", encoding="utf-8", newline="\n") as f:
 print(f"  .zshrc escrito: {zshrc} ({content.count(chr(10))} linhas, LF, UTF-8)")
 PYEOF
 
-# 1Password SSH config (independente de shell)
-if [ "$INSTALL_1PASSWORD" = "1" ] && [ -n "$WIN_USER" ]; then
-    OP_SOCK="/mnt/c/Users/${WIN_USER}/.1password/agent.sock"
-    mkdir -p "$HOME/.ssh"
-    chmod 700 "$HOME/.ssh"
-    SSH_CONFIG="$HOME/.ssh/config"
-    if ! grep -q "1password" "$SSH_CONFIG" 2>/dev/null; then
-        # Aspas ao redor do path — necessario quando WIN_USER tem espacos (ex: "Leonardo Gobatto")
-        printf '\n# 1Password SSH Agent\nHost *\n    IdentityAgent "%s"\n' "$OP_SOCK" >> "$SSH_CONFIG"
-        chmod 600 "$SSH_CONFIG"
-        ok "~/.ssh/config: IdentityAgent configurado"
-    else
-        ok "~/.ssh/config: 1Password ja configurado"
-    fi
-    ok "1Password SSH agent configurado"
-    warn "Habilite em: 1Password > Settings > Developer > SSH Agent + Integrate with WSL"
+# 1Password SSH Agent — abordagem oficial para WSL2
+# Ref: https://developer.1password.com/docs/ssh/integrations/wsl
+#
+# Nao usa socket nem npiperelay. O Git no WSL delega o SSH diretamente
+# ao ssh.exe do Windows, que ja tem acesso ao 1Password SSH Agent via
+# Windows OpenSSH Agent service (pipe \\.\pipe\openssh-ssh-agent).
+#
+if [ "$INSTALL_1PASSWORD" = "1" ]; then
+    # Configurar Git para usar ssh.exe do Windows (acessa 1Password diretamente)
+    git config --global core.sshCommand "ssh.exe"
+    ok "git core.sshCommand = ssh.exe (1Password SSH Agent via Windows OpenSSH)"
+    warn "Certifique-se que o servico 'OpenSSH Authentication Agent' esta ativo no Windows"
+    warn "Habilite em: 1Password > Settings > Developer > Use the SSH Agent"
 fi
 
 ok ".zshrc configurado"
