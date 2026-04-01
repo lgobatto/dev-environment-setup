@@ -166,23 +166,22 @@ if (-not $SkipApps) {
         }
     }
 
-    # Habilitar Windows OpenSSH Agent service — necessario para 1Password SSH Agent
-    # e para que ssh.exe (usado pelo Git no WSL2) possa acessar as chaves
-    Write-Step "Habilitando Windows OpenSSH Authentication Agent..."
+    # O 1Password SSH Agent precisa que o Windows OpenSSH Agent esteja DESABILITADO
+    # para poder tomar o pipe \\.\pipe\openssh-ssh-agent exclusivamente.
+    # Ref: https://developer.1password.com/docs/ssh/get-started
+    Write-Step "Verificando Windows OpenSSH Authentication Agent..."
     $sshAgent = Get-Service ssh-agent -ErrorAction SilentlyContinue
     if ($null -ne $sshAgent) {
-        if ($sshAgent.StartType -eq 'Disabled') {
-            Set-Service ssh-agent -StartupType Automatic
-            Write-OK "ssh-agent: StartupType -> Automatic"
+        if ($sshAgent.Status -eq 'Running') {
+            Stop-Service ssh-agent -Force 2>&1 | Out-Null
+            Write-OK "ssh-agent: parado"
         }
-        if ($sshAgent.Status -ne 'Running') {
-            Start-Service ssh-agent
-            Write-OK "ssh-agent: iniciado"
+        if ($sshAgent.StartType -ne 'Disabled') {
+            Set-Service ssh-agent -StartupType Disabled
+            Write-OK "ssh-agent: desabilitado (1Password assume o pipe openssh-ssh-agent)"
         } else {
-            Write-OK "ssh-agent: ja rodando"
+            Write-OK "ssh-agent: ja desabilitado (correto para 1Password)"
         }
-    } else {
-        Write-Warn "ssh-agent nao encontrado — instale OpenSSH via 'Recursos Opcionais do Windows'"
     }
 
     Write-Step "Instalando extensoes VS Code para WSL..."
