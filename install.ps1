@@ -56,8 +56,36 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 Write-Host "  PowerShell 7+ OK. Iniciando setup..." -ForegroundColor Green
 Write-Host ""
 
-# Delegar para setup-windows.ps1 (que requer PS7)
+# Localizar setup-windows.ps1 — pode estar ao lado deste script (clone local)
+# ou precisar ser baixado (execucao via irm | iex ou arquivo isolado)
 $setup = Join-Path $PSScriptRoot "setup-windows.ps1"
+
+if (-not (Test-Path $setup)) {
+    $repoUrl  = "https://github.com/lgobatto/dev-environment-setup.git"
+    $repoDir  = "$env:USERPROFILE\dev-environment-setup"
+
+    Write-Host "  setup-windows.ps1 nao encontrado localmente." -ForegroundColor Yellow
+    Write-Host "  Clonando repositorio em: $repoDir" -ForegroundColor Cyan
+    Write-Host ""
+
+    if (Test-Path $repoDir) {
+        Write-Host "  Atualizando repositorio existente..." -ForegroundColor DarkGray
+        git -C $repoDir pull --quiet
+    } else {
+        git clone --depth=1 $repoUrl $repoDir
+    }
+
+    $setup = Join-Path $repoDir "setup-windows.ps1"
+
+    if (-not (Test-Path $setup)) {
+        Write-Host "  ERRO: nao foi possivel obter setup-windows.ps1" -ForegroundColor Red
+        Write-Host "  Clone manualmente: git clone $repoUrl" -ForegroundColor Yellow
+        exit 1
+    }
+
+    Write-Host "  Repositorio pronto." -ForegroundColor Green
+    Write-Host ""
+}
 
 $passArgs = @{}
 if ($Install1Password) { $passArgs["Install1Password"] = $true }

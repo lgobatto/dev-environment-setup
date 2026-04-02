@@ -28,24 +28,38 @@ sem passar pela camada de interop Windows → **ganho de I/O de ~10-20x** compar
 
 ---
 
-## Setup rápido
+## Instalação em uma linha
 
-### 1. Windows (PowerShell como Administrador)
+Abra o **PowerShell como Administrador** e execute:
 
 ```powershell
-# Clonar este repo
+Set-ExecutionPolicy Bypass -Scope Process -Force; irm https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/install.ps1 -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1"
+```
+
+Com 1Password:
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force; irm https://raw.githubusercontent.com/lgobatto/dev-environment-setup/main/install.ps1 -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1" -Install1Password
+```
+
+> O script clona automaticamente o repositório em `%USERPROFILE%\dev-environment-setup` se necessário.
+
+---
+
+## Setup rápido (clone manual)
+
+```powershell
+# Clonar e executar
 git clone git@github.com:lgobatto/dev-environment-setup.git
 cd dev-environment-setup
-
-# Executar (instala WSL2, Ubuntu 24.04, apps Windows, bootstrap WSL)
 Set-ExecutionPolicy Bypass -Scope Process -Force
-.\setup-windows.ps1
+.\install.ps1
 
 # Com 1Password:
-.\setup-windows.ps1 -Install1Password
+.\install.ps1 -Install1Password
 
 # Só WSL2 + .wslconfig, sem instalar apps:
-.\setup-windows.ps1 -SkipApps
+.\install.ps1 -SkipApps
 ```
 
 O script detecta o hardware da máquina e calcula automaticamente a alocação ideal de RAM e CPUs para o WSL2:
