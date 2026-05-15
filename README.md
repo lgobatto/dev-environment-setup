@@ -131,8 +131,11 @@ Configura o ambiente de desenvolvimento dentro do Ubuntu 24.04. Idempotente.
 - **Lando CLI** — versão mais recente via GitHub releases
 - **Claude Code CLI** — `@anthropic-ai/claude-code`
 - **GitHub CLI**
-- **Zsh** + Oh My Zsh + Powerlevel10k + plugins (autosuggestions, syntax-highlighting, completions)
+- **Zsh** + Oh My Zsh + Powerlevel10k + plugins (autosuggestions, syntax-highlighting, completions) — pule com `SKIP_ZSH=1`
 - Git configurado para WSL (`core.autocrlf=input`, `init.defaultBranch=main`)
+
+> Roda também em **Linux nativo** (Zorin/Ubuntu): o passo do `/etc/wsl.conf` é
+> pulado automaticamente fora do WSL.
 
 **Variáveis de ambiente:**
 ```bash
@@ -141,6 +144,7 @@ GIT_EMAIL="seu@email.com"     # Email para git config
 INSTALL_1PASSWORD=1           # Configura 1Password SSH agent
 NODE_VERSION="lts"            # "lts", "latest" ou versão específica "22"
 PHP_VERSION="8.3"             # Versão do PHP
+SKIP_ZSH=1                    # Não instala Zsh/Oh My Zsh/Powerlevel10k
 ```
 
 **Aliases instalados:**
@@ -153,6 +157,30 @@ lbuild   # lando theme-build
 lflush   # lando flush
 lacorn   # lando acorn
 cc       # claude (Claude Code CLI)
+```
+
+---
+
+### `setup-zorin-apps.sh` — Linux nativo (Zorin OS / Ubuntu)
+
+Setup de **Linux nativo** — equivalente do `setup-windows.ps1` para quem roda
+Zorin OS / Ubuntu direto, sem WSL. Instala os apps GUI e, ao final, chama o
+`setup-wsl.sh` para os CLIs. Idempotente.
+
+**O que instala:**
+- **apt (repos oficiais):** VS Code, Google Chrome, Warp, PowerShell 7
+- **apt:** Java 8 (`openjdk-8-jre`), 1Password CLI (`op`)
+- **.deb nativo:** GitKraken, DBeaver, GitHub Desktop — *não* Flatpak, para
+  acesso direto a `~/.ssh`, SSH agent e pastas de projeto
+- **flatpak (flathub):** Firefox, Discord, Spotify, Postman
+- **Nerd Fonts** via `nerdfonts-install.sh`
+- **CLIs de dev** via `setup-wsl.sh` (com `SKIP_ZSH=1`)
+
+```bash
+bash setup-zorin-apps.sh
+
+# Pular apps individuais (=0):
+INSTALL_DISCORD=0 INSTALL_SPOTIFY=0 bash setup-zorin-apps.sh
 ```
 
 ---
@@ -226,6 +254,7 @@ bash /mnt/c/Users/SEU_USUARIO/Work/dev-environment-setup/setup-wsl.sh
 | Script | Windows (WSL2) | Linux nativo | macOS |
 |---|---|---|---|
 | `setup-windows.ps1` | ✅ | ❌ | ❌ |
+| `setup-zorin-apps.sh` | ❌ | ✅ | ❌ |
 | `setup-wsl.sh` | ✅ | ✅ | ⚠️ parcial |
 | `migrate-project.sh` | ✅ | ✅ | ✅ |
 | `ssh-git-setup.sh` | ✅ | ✅ | ✅ |
@@ -238,6 +267,7 @@ bash /mnt/c/Users/SEU_USUARIO/Work/dev-environment-setup/setup-wsl.sh
 ```
 dev-environment-setup/
 ├── setup-windows.ps1       # Setup Windows: WSL2 + apps via winget
+├── setup-zorin-apps.sh     # Setup Linux nativo (Zorin/Ubuntu): apps GUI + CLIs
 ├── setup-wsl.sh            # Setup WSL2: Docker Engine, Node, PHP, Lando, Claude Code
 ├── migrate-project.sh      # Migrar projetos para ~/projects/ no WSL2
 ├── ssh-git-setup.sh        # SSH multi-identidade com 1Password

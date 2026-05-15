@@ -30,6 +30,7 @@ GIT_NAME="${GIT_NAME:-}"
 GIT_EMAIL="${GIT_EMAIL:-}"
 NODE_VERSION="${NODE_VERSION:-lts}"    # "lts", "latest", ou versão específica "22"
 PHP_VERSION="${PHP_VERSION:-8.3}"
+SKIP_ZSH="${SKIP_ZSH:-0}"              # 1 = não instala Zsh/Oh My Zsh/Powerlevel10k
 
 # ── Cores e helpers ──────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -63,21 +64,27 @@ if ! grep -qi "ubuntu" /etc/os-release 2>/dev/null; then
     warn "Este script foi feito para Ubuntu. Pode não funcionar em outra distro."
 fi
 
-# ── 1. Habilitar systemd (necessário para Docker autostart) ──────────────────
-step "Verificando systemd no WSL2..."
-WSL_CONF="/etc/wsl.conf"
-if ! grep -q "systemd=true" "$WSL_CONF" 2>/dev/null; then
-    sudo mkdir -p "$(dirname "$WSL_CONF")"
-    if grep -q "\[boot\]" "$WSL_CONF" 2>/dev/null; then
-        sudo sed -i '/\[boot\]/a systemd=true' "$WSL_CONF"
+# ── 1. Habilitar systemd no WSL2 (necessário para Docker autostart) ──────────
+#  Em Linux nativo (Zorin/Ubuntu) o systemd já é PID 1 e /etc/wsl.conf é
+#  ignorado pelo kernel — esse passo só faz sentido dentro do WSL2.
+step "Verificando ambiente..."
+if grep -qiE '(microsoft|wsl)' /proc/version 2>/dev/null; then
+    WSL_CONF="/etc/wsl.conf"
+    if ! grep -q "systemd=true" "$WSL_CONF" 2>/dev/null; then
+        sudo mkdir -p "$(dirname "$WSL_CONF")"
+        if grep -q "\[boot\]" "$WSL_CONF" 2>/dev/null; then
+            sudo sed -i '/\[boot\]/a systemd=true' "$WSL_CONF"
+        else
+            printf '\n[boot]\nsystemd=true\n' | sudo tee -a "$WSL_CONF" > /dev/null
+        fi
+        warn "systemd habilitado no /etc/wsl.conf."
+        warn "Para aplicar agora: saia do WSL e rode 'wsl --shutdown' no PowerShell."
+        warn "Continuando — alguns serviços podem precisar ser iniciados manualmente."
     else
-        printf '\n[boot]\nsystemd=true\n' | sudo tee -a "$WSL_CONF" > /dev/null
+        ok "systemd já habilitado"
     fi
-    warn "systemd habilitado no /etc/wsl.conf."
-    warn "Para aplicar agora: saia do WSL e rode 'wsl --shutdown' no PowerShell."
-    warn "Continuando — alguns serviços podem precisar ser iniciados manualmente."
 else
-    ok "systemd já habilitado"
+    ok "Linux nativo (não-WSL) — /etc/wsl.conf não é necessário"
 fi
 
 # ── 2. Atualizar sistema e instalar base ──────────────────────────────────────
@@ -91,7 +98,7 @@ apt_install \
     software-properties-common \
     apt-transport-https \
     lsb-release \
-    zsh socat jq \
+    socat jq \
     xdg-utils
 ok "Sistema atualizado e dependências base instaladas"
 
@@ -298,7 +305,12 @@ else
 fi
 
 # ── 9. Zsh + Oh My Zsh + Powerlevel10k ───────────────────────────────────────
+if [ "$SKIP_ZSH" = "1" ]; then
+    step "Zsh — pulado (SKIP_ZSH=1)"
+    ok "Zsh não será instalado"
+else
 step "Configurando Zsh + Oh My Zsh + Powerlevel10k..."
+apt_install zsh
 ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
 
 # Oh My Zsh
@@ -337,8 +349,10 @@ for plugin in "${!PLUGINS[@]}"; do
         ok "Plugin atualizado: $plugin"
     fi
 done
+fi
 
 # ── 10. Configurar .zshrc ─────────────────────────────────────────────────────
+if [ "$SKIP_ZSH" != "1" ]; then
 step "Configurando .zshrc..."
 
 # Backup do .zshrc existente
@@ -410,6 +424,8 @@ with open(zshrc, "w", encoding="utf-8", newline="\n") as f:
 
 print(f"  .zshrc escrito: {zshrc} ({content.count(chr(10))} linhas, LF, UTF-8)")
 PYEOF
+ok ".zshrc configurado"
+fi
 
 # 1Password SSH Agent — abordagem oficial para WSL2
 # Ref: https://developer.1password.com/docs/ssh/integrations/wsl
@@ -426,9 +442,10 @@ if [ "$INSTALL_1PASSWORD" = "1" ]; then
     warn "Habilite em: 1Password > Settings > Developer > Use the SSH Agent"
 fi
 
-ok ".zshrc configurado"
-
 # ── 11. Definir Zsh como shell padrão ────────────────────────────────────────
+if [ "$SKIP_ZSH" = "1" ]; then
+    step "Shell padrão — mantido (SKIP_ZSH=1)"
+else
 step "Definindo Zsh como shell padrão..."
 ZSH_BIN="$(which zsh)"
 if [ "$SHELL" != "$ZSH_BIN" ]; then
@@ -440,6 +457,7 @@ if [ "$SHELL" != "$ZSH_BIN" ]; then
     fi
 else
     ok "Zsh já é o shell padrão"
+fi
 fi
 
 # ── 12. Git global config ────────────────────────────────────────────────────
@@ -495,12 +513,14 @@ has zsh      && echo -e "    ${GREEN}✔${RESET} Zsh:        $(zsh --version)"
 
 echo ""
 echo -e "  ${BOLD}Próximos passos:${RESET}"
-echo -e "    ${CYAN}1.${RESET} Aplique o novo shell:       exec zsh"
-echo -e "    ${CYAN}2.${RESET} Configure Powerlevel10k:    p10k configure"
-echo -e "    ${CYAN}3.${RESET} Configure Git:              git config --global user.name 'Seu Nome'"
-echo -e "    ${CYAN}4.${RESET} Autentique GitHub CLI:      gh auth login"
-echo -e "    ${CYAN}5.${RESET} Clone seus projetos:        cd ~/projects && bash migrate-project.sh"
-echo -e "    ${CYAN}6.${RESET} Abra no VS Code via WSL:    cd ~/projects/brisausa && code ."
+if [ "$SKIP_ZSH" != "1" ]; then
+echo -e "    ${CYAN}•${RESET} Aplique o novo shell:       exec zsh"
+echo -e "    ${CYAN}•${RESET} Configure Powerlevel10k:    p10k configure"
+fi
+echo -e "    ${CYAN}•${RESET} Configure Git:              git config --global user.name 'Seu Nome'"
+echo -e "    ${CYAN}•${RESET} Autentique GitHub CLI:      gh auth login"
+echo -e "    ${CYAN}•${RESET} Clone seus projetos:        cd ~/projects && bash migrate-project.sh"
+echo -e "    ${CYAN}•${RESET} Abra no VS Code:            cd ~/projects/SEU_PROJETO && code ."
 echo ""
 echo -e "  ${YELLOW}⚠${RESET}  Se o Docker não iniciar, execute: sudo service docker start"
 echo -e "  ${YELLOW}⚠${RESET}  Para aplicar o grupo docker sem relogar: newgrp docker"
