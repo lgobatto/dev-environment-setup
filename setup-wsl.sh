@@ -31,6 +31,7 @@ GIT_EMAIL="${GIT_EMAIL:-}"
 NODE_VERSION="${NODE_VERSION:-lts}"    # "lts", "latest", ou versão específica "22"
 PHP_VERSION="${PHP_VERSION:-8.3}"
 SKIP_ZSH="${SKIP_ZSH:-0}"              # 1 = não instala Zsh/Oh My Zsh/Powerlevel10k
+INSTALL_PRODTOOLS="${INSTALL_PRODTOOLS:-1}"  # CLIs de produtividade/IaC/segurança
 
 # ── Cores e helpers ──────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -489,6 +490,63 @@ ok "Git configurado"
 step "Criando estrutura ~/projects..."
 mkdir -p ~/projects
 ok "~/projects pronto"
+
+# ── 13b. Ferramentas de produtividade / IaC / segurança ──────────────────────
+#  Tudo nativo (apt + binários de release em ~/.local/bin). Sem flatpak/snap.
+#   • Segredos/hooks: gitleaks (defesa-em-profundidade p/ "zero segredo no repo")
+#   • Shell/dev:      direnv, zoxide, mise, shellcheck, shfmt, pre-commit
+#   • IaC/segurança:  tflint, trivy, infracost, terraform-docs, actionlint
+#   • CLI moderna:    eza, bat, ripgrep, fd-find, k9s, lazydocker
+if [ "$INSTALL_PRODTOOLS" = "1" ]; then
+    step "Ferramentas de produtividade (CLI)..."
+    # apt: o que o Ubuntu/Zorin 24.04 já empacota
+    apt_install direnv shellcheck shfmt pre-commit zoxide bat ripgrep \
+        fd-find eza trivy unzip
+    ok "apt: direnv shellcheck shfmt pre-commit zoxide bat ripgrep fd-find eza trivy"
+
+    # mise — repo apt oficial (gerenciador de runtimes por projeto)
+    if ! has mise; then
+        sudo install -dm 755 /etc/apt/keyrings
+        wget -qO - https://mise.jdx.dev/gpg-key.pub \
+            | gpg --dearmor | sudo tee /etc/apt/keyrings/mise-archive-keyring.gpg >/dev/null
+        echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.gpg arch=amd64] https://mise.jdx.dev/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/mise.list >/dev/null
+        sudo apt-get update -qq && apt_install mise && ok "mise instalado" || warn "mise falhou"
+    else
+        ok "mise já instalado"
+    fi
+
+    # Binários de release → ~/.local/bin (sem sudo). Requer gh autenticado.
+    mkdir -p "$HOME/.local/bin"
+    _ftbin() { # repo  grep_pattern  binname  [inner]
+        local repo="$1" pat="$2" name="$3" inner="${4:-$3}" url tmp f
+        has "$name" || [ -x "$HOME/.local/bin/$name" ] && { ok "$name já instalado"; return; }
+        url=$(gh api "repos/$repo/releases/latest" \
+              --jq '.assets[] | "\(.name) \(.browser_download_url)"' 2>/dev/null \
+              | grep -E "$pat" | awk '{print $2}' | head -1)
+        [ -z "$url" ] && { warn "$name: asset não encontrado (gh autenticado?)"; return; }
+        tmp=$(mktemp -d)
+        ( cd "$tmp" || exit
+          curl -fsSL "$url" -o pkg
+          case "$url" in *.zip) unzip -q pkg ;; *) tar xzf pkg ;; esac
+          f=$(find . -type f -name "$inner" | head -1)
+          [ -z "$f" ] && f=$(find . -type f -name "*${name}*" ! -name pkg | head -1)
+          [ -n "$f" ] && install -m755 "$f" "$HOME/.local/bin/$name" && ok "$name" || warn "$name: binário ausente no pacote"
+        )
+        rm -rf "$tmp"
+    }
+    if has gh; then
+        _ftbin gitleaks/gitleaks             'linux_x64\.tar\.gz'    gitleaks
+        _ftbin rhysd/actionlint              'linux_amd64\.tar\.gz'  actionlint
+        _ftbin terraform-linters/tflint      'linux_amd64\.zip'      tflint
+        _ftbin infracost/infracost           'infracost-linux-amd64\.tar\.gz' infracost infracost-linux-amd64
+        _ftbin terraform-docs/terraform-docs 'linux-amd64\.tar\.gz'  terraform-docs
+        _ftbin derailed/k9s                  'k9s_Linux_amd64\.tar\.gz' k9s
+        _ftbin jesseduffield/lazydocker      'Linux_x86_64\.tar\.gz' lazydocker
+    else
+        warn "gh ausente — pulei binários de release (gitleaks/tflint/k9s/...). Rode após 'gh auth login'."
+    fi
+fi
 
 # ── 14. Resumo final ─────────────────────────────────────────────────────────
 echo ""
