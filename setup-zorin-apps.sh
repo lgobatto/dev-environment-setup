@@ -44,6 +44,7 @@ INSTALL_FONTS="${INSTALL_FONTS:-1}"
 INSTALL_WSL_CLIS="${INSTALL_WSL_CLIS:-1}"   # CLIs de dev via setup-wsl.sh
 INSTALL_AWS="${INSTALL_AWS:-1}"
 INSTALL_TERRAFORM="${INSTALL_TERRAFORM:-1}"
+INSTALL_CLOUDFLARED="${INSTALL_CLOUDFLARED:-1}"   # SSH proxy + Cloudflare Tunnel
 INSTALL_WRANGLER="${INSTALL_WRANGLER:-1}"
 INSTALL_DOCTL="${INSTALL_DOCTL:-1}"
 INSTALL_GLAB="${INSTALL_GLAB:-1}"
@@ -441,6 +442,32 @@ if [ "$INSTALL_GLAB" = "1" ]; then
             deb_install_url "$GLAB_URL" "glab"
         else
             warn "glab: não foi possível obter o link do .deb"
+        fi
+    fi
+fi
+
+if [ "$INSTALL_CLOUDFLARED" = "1" ]; then
+    step "cloudflared (Cloudflare Tunnel / Access SSH proxy)..."
+    if has cloudflared; then
+        ok "cloudflared já instalado: $(cloudflared --version 2>&1 | head -1)"
+    else
+        # Binário estático do GitHub Releases — sem dependências, idêntico ao
+        # usado nas pipelines CI para ProxyCommand SSH via Cloudflare Access.
+        CFDVER="$(curl -fsSL 'https://api.github.com/repos/cloudflare/cloudflared/releases/latest' 2>/dev/null \
+            | grep -oP '"tag_name":"\K[^"]+' | head -1 || true)"
+        if [ -n "$CFDVER" ]; then
+            tmp="$(mktemp)"
+            if curl -fsSL \
+                "https://github.com/cloudflare/cloudflared/releases/download/${CFDVER}/cloudflared-linux-amd64" \
+                -o "$tmp"; then
+                sudo install -m 755 "$tmp" /usr/local/bin/cloudflared \
+                    && ok "cloudflared ${CFDVER} instalado" || warn "cloudflared: install falhou"
+            else
+                warn "cloudflared: download falhou"
+            fi
+            rm -f "$tmp"
+        else
+            warn "cloudflared: não foi possível obter a versão mais recente"
         fi
     fi
 fi
