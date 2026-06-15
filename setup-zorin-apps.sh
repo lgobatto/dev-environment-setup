@@ -45,6 +45,7 @@ INSTALL_WSL_CLIS="${INSTALL_WSL_CLIS:-1}"   # CLIs de dev via setup-wsl.sh
 INSTALL_AWS="${INSTALL_AWS:-1}"
 INSTALL_TERRAFORM="${INSTALL_TERRAFORM:-1}"
 INSTALL_CLOUDFLARED="${INSTALL_CLOUDFLARED:-1}"   # SSH proxy + Cloudflare Tunnel
+INSTALL_UV="${INSTALL_UV:-1}"                     # Python package manager (astral-sh/uv)
 INSTALL_WRANGLER="${INSTALL_WRANGLER:-1}"
 INSTALL_DOCTL="${INSTALL_DOCTL:-1}"
 INSTALL_GLAB="${INSTALL_GLAB:-1}"
@@ -468,6 +469,19 @@ if [ "$INSTALL_CLOUDFLARED" = "1" ]; then
             rm -f "$tmp"
         else
             warn "cloudflared: não foi possível obter a versão mais recente"
+        fi
+    fi
+fi
+
+if [ "$INSTALL_UV" = "1" ]; then
+    step "uv (Python package manager)..."
+    if has uv; then
+        ok "uv já instalado: $(uv --version 2>&1 | head -1)"
+    else
+        if curl -fsSL https://astral.sh/uv/install.sh | sh; then
+            ok "uv instalado"
+        else
+            warn "uv: instalação falhou"
         fi
     fi
 fi
