@@ -520,7 +520,7 @@ if [ "$INSTALL_PRODTOOLS" = "1" ]; then
     mkdir -p "$HOME/.local/bin"
     _ftbin() { # repo  grep_pattern  binname  [inner]
         local repo="$1" pat="$2" name="$3" inner="${4:-$3}" url tmp f
-        has "$name" || [ -x "$HOME/.local/bin/$name" ] && { ok "$name já instalado"; return; }
+        if has "$name" || [ -x "$HOME/.local/bin/$name" ]; then ok "$name já instalado"; return; fi
         url=$(gh api "repos/$repo/releases/latest" \
               --jq '.assets[] | "\(.name) \(.browser_download_url)"' 2>/dev/null \
               | grep -E "$pat" | awk '{print $2}' | head -1)
