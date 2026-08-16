@@ -455,7 +455,7 @@ if [ "$INSTALL_CLOUDFLARED" = "1" ]; then
         # Binário estático do GitHub Releases — sem dependências, idêntico ao
         # usado nas pipelines CI para ProxyCommand SSH via Cloudflare Access.
         CFDVER="$(curl -fsSL 'https://api.github.com/repos/cloudflare/cloudflared/releases/latest' 2>/dev/null \
-            | grep -oP '"tag_name":"\K[^"]+' | head -1 || true)"
+            | grep -oP '"tag_name":\s*"\K[^"]+' | head -1 || true)"
         if [ -n "$CFDVER" ]; then
             tmp="$(mktemp)"
             if curl -fsSL \
