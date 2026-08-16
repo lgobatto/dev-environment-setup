@@ -49,7 +49,6 @@ INSTALL_UV="${INSTALL_UV:-1}"                     # Python package manager (astr
 INSTALL_WRANGLER="${INSTALL_WRANGLER:-1}"
 INSTALL_DOCTL="${INSTALL_DOCTL:-1}"
 INSTALL_GLAB="${INSTALL_GLAB:-1}"
-INSTALL_LANMOUSE="${INSTALL_LANMOUSE:-1}"   # lan-mouse (KVM nativo via cargo)
 
 # ── Cores e helpers ──────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -272,59 +271,6 @@ if [ "$INSTALL_FONTS" = "1" ]; then
     fi
 fi
 
-# ── 10b. lan-mouse — KVM nativo (teclado/mouse via LAN) ──────────────────────
-#  Software KVM da família "compartilha 1 teclado/mouse entre máquinas da mesa".
-#  Nativo via cargo (NÃO Flatpak): o Flatpak da Zorin trava modificadores
-#  (shift/capslock) como servidor no Wayland. lan-mouse é escrito sobre libei
-#  (impl. Rust pura — independe do libei do sistema) e trata isso corretamente.
-#  Pré-compilado .deb não existe p/ Ubuntu 24.04 (noble), por isso build local.
-if [ "$INSTALL_LANMOUSE" = "1" ]; then
-    step "lan-mouse (KVM nativo)..."
-    if has lan-mouse || [ -x "$HOME/.cargo/bin/lan-mouse" ]; then
-        ok "lan-mouse já instalado"
-    else
-        # deps de build (GTK4 + libadwaita p/ a GUI; X11 p/ backend de emulação)
-        apt_install build-essential pkg-config \
-            libadwaita-1-dev libgtk-4-dev libx11-dev libxtst-dev
-        # toolchain Rust via rustup (em ~/.cargo, sem mexer no sistema)
-        if ! has cargo && [ ! -x "$HOME/.cargo/bin/cargo" ]; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-                | sh -s -- -y --no-modify-path --profile minimal \
-                && ok "Rust (rustup) instalado" || warn "rustup falhou"
-        fi
-        # shellcheck disable=SC1091
-        [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
-        if has cargo; then
-            cargo install lan-mouse && ok "lan-mouse instalado (~/.cargo/bin)" \
-                || warn "cargo install lan-mouse falhou"
-        else
-            warn "cargo indisponível — lan-mouse não instalado"
-        fi
-        # autostart como user service (precisa de sessão gráfica + portal)
-        if has lan-mouse || [ -x "$HOME/.cargo/bin/lan-mouse" ]; then
-            mkdir -p "$HOME/.config/systemd/user"
-            cat > "$HOME/.config/systemd/user/lan-mouse.service" <<'UNIT'
-[Unit]
-Description=Lan Mouse (software KVM)
-After=graphical-session.target
-BindsTo=graphical-session.target
-
-[Service]
-ExecStart=%h/.cargo/bin/lan-mouse --daemon
-Restart=on-failure
-RestartSec=2
-
-[Install]
-WantedBy=graphical-session.target
-UNIT
-            systemctl --user daemon-reload 2>/dev/null || true
-            systemctl --user enable lan-mouse.service 2>/dev/null \
-                && ok "autostart (systemd user) habilitado" \
-                || warn "não foi possível habilitar o autostart (rode num login gráfico)"
-        fi
-    fi
-fi
-
 # ── Resumo ───────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${CYAN}${BOLD}"
@@ -340,8 +286,8 @@ echo -e "  ${YELLOW}⚠${RESET}  1Password (app): instale separadamente — este
 echo -e "  ${YELLOW}⚠${RESET}  Windows Terminal: sem porte Linux — Warp cobre o terminal moderno."
 echo -e "  ${YELLOW}⚠${RESET}  Google Drive: sem cliente oficial Linux."
 echo -e "      Use ${BOLD}Configurações → Contas Online → Google${RESET} (ou rclone / Insync)."
-echo -e "  ${YELLOW}⚠${RESET}  lan-mouse (KVM): build nativo via cargo + autostart (systemd user)."
-echo -e "      Configure clients/bordas em ${BOLD}~/.config/lan-mouse/config.toml${RESET}; libere a porta 4242."
+echo -e "  ${YELLOW}⚠${RESET}  KVM (teclado/mouse entre máquinas): não incluído — instale o de sua"
+echo -e "      preferência (Synergy, Deskflow, Barrier). Só um pode capturar o ponteiro."
 echo -e "  ${YELLOW}⚠${RESET}  CLIs de dev (Node, Docker, PHP, Composer, Lando, gh, Claude):"
 echo -e "      instalados a seguir via setup-wsl.sh."
 echo ""
