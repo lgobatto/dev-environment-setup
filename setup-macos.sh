@@ -58,16 +58,26 @@ FALHAS=()
 
 has() { command -v "$1" >/dev/null 2>&1; }
 
-# brew_formula <nome> [binario-esperado]
+# brew_formula <nome> [binario-esperado] [--brew-only]
 #  Nao aborta o script inteiro se um pacote falhar: registra e segue. Numa
 #  maquina nova, uma formula renomeada nao pode derrubar o resto do setup.
+#
+#  --brew-only ignora um binario homonimo que ja exista fora do brew. Serve
+#  para o caso em que o macOS ja traz uma versao propria mas queremos a do
+#  brew mesmo assim (ex.: o git do Command Line Tools fica preso ao ciclo de
+#  release do Xcode). Sem a flag, qualquer binario no PATH conta como
+#  "ja presente" — que e o certo para a maioria (jq, por exemplo, vem no
+#  macOS 26 e nao precisa de duplicata).
 brew_formula() {
-    local pkg="$1" bin="${2:-$1}"
+    local pkg="$1" bin="${2:-$1}" modo="${3:-}"
     # Aceita nome com tap (ex.: hashicorp/tap/terraform): o `brew list` quer o
     # nome curto, mas o `brew install` precisa do caminho completo (auto-tapa).
     local curto="${pkg##*/}"
     [ "$bin" = "$pkg" ] && bin="$curto"
-    if has "$bin" || brew list --formula "$curto" >/dev/null 2>&1; then
+    if brew list --formula "$curto" >/dev/null 2>&1; then
+        ok "$pkg (já presente)"; return 0
+    fi
+    if [ "$modo" != "--brew-only" ] && has "$bin"; then
         ok "$pkg (já presente)"; return 0
     fi
     if brew install "$pkg" >/dev/null 2>&1; then ok "$pkg"
@@ -104,15 +114,29 @@ if ! xcode-select -p >/dev/null 2>&1; then
 fi
 ok "Xcode Command Line Tools"
 
-if ! has brew; then
+# Numa instalacao recem-feita o brew AINDA NAO esta no PATH: o `brew shellenv`
+# so entra no rc do shell depois (quem faz isso e o workstation/install.sh).
+# Por isso procurar o binario nos prefixos conhecidos antes de desistir —
+# checar so o PATH daria "Homebrew nao instalado" com ele instalado.
+BREW_BIN=""
+if has brew; then
+    BREW_BIN="$(command -v brew)"
+else
+    for cand in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+        [ -x "$cand" ] && { BREW_BIN="$cand"; break; }
+    done
+fi
+
+if [ -z "$BREW_BIN" ]; then
     # O instalador do Homebrew pede senha de administrador (cria /opt/homebrew).
     # Nao da para rodar desatendido; por isso instrui em vez de tentar.
     err "Homebrew não instalado. Rode e execute este script de novo:"
     echo '     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    echo "     (precisa de um terminal de verdade — o sudo não pede senha sem TTY)"
     exit 1
 fi
 # Apple Silicon instala em /opt/homebrew, que nao esta no PATH por padrao.
-eval "$(brew shellenv)"
+eval "$("$BREW_BIN" shellenv)"
 ok "Homebrew $(brew --version | head -1 | awk '{print $2}')"
 
 brew update >/dev/null 2>&1 && ok "índice do brew atualizado" || warn "brew update falhou (seguindo)"
@@ -120,8 +144,10 @@ brew update >/dev/null 2>&1 && ok "índice do brew atualizado" || warn "brew upd
 # ── 1. CLIs base de dev ──────────────────────────────────────────────────────
 if [ "$INSTALL_CLIS" = "1" ]; then
     step "CLIs base de desenvolvimento"
-    # git do brew: o do CLT fica preso a versao do Xcode.
-    brew_formula git
+    # git do brew mesmo com o do CLT presente: o do Xcode so atualiza junto com
+    # o Command Line Tools. O `brew shellenv` poe /opt/homebrew/bin antes do
+    # /usr/bin, entao o do brew e o que passa a responder por `git`.
+    brew_formula git git --brew-only
     brew_formula gh
     brew_formula jq            # op-creds.sh depende
     brew_formula node
@@ -144,7 +170,21 @@ if [ "$INSTALL_DOCKER" = "1" ]; then
     step "Docker (runtime: $DOCKER_RUNTIME)"
     case "$DOCKER_RUNTIME" in
         desktop)
-            brew_cask docker-desktop "/Applications/Docker.app"
+            # O cask do Docker Desktop faz `sudo ln -s` do docker-credential-osxkeychain
+            # em /usr/local/bin. Sem TTY o sudo falha e o brew reverte a instalacao
+            # inteira. Nao da para contornar de dentro do script: avisa e sai.
+            if [ -d "/Applications/Docker.app" ]; then
+                ok "docker-desktop (já instalado)"
+            elif sudo -n true 2>/dev/null; then
+                brew_cask docker-desktop "/Applications/Docker.app"
+            else
+                err "docker-desktop exige sudo com terminal interativo."
+                echo "     Rode num Terminal de verdade (não por script/agente):"
+                echo "       brew install --cask docker-desktop"
+                echo "     Ou use o runtime FOSS, que dispensa sudo:"
+                echo "       DOCKER_RUNTIME=colima bash setup-macos.sh"
+                FALHAS+=("cask:docker-desktop (precisa de TTY)")
+            fi
             warn "Abra o Docker Desktop uma vez para concluir a instalação do daemon."
             ;;
         colima)
@@ -159,9 +199,27 @@ if [ "$INSTALL_DOCKER" = "1" ]; then
 fi
 
 # ── 4. Lando ─────────────────────────────────────────────────────────────────
+#  NAO usar o cask `lando`: foi descontinuado e desabilitado em 2025-09-07
+#  ("no longer distributes an install package"), e ainda arrastava o
+#  docker-desktop como dependencia. O metodo oficial e o setup-lando.sh, que
+#  instala em ~/.lando/bin sem pedir sudo — o mesmo que o setup-wsl.sh ja faz
+#  no Linux, entao os dois SOs ficam com a instalacao identica.
 if [ "$INSTALL_LANDO" = "1" ]; then
     step "Lando"
-    brew_cask lando
+    LANDO_BIN="$HOME/.lando/bin/lando"
+    if [ -x "$LANDO_BIN" ] || has lando; then
+        ok "lando (já presente)"
+    else
+        if curl -fsSL https://get.lando.dev/setup-lando.sh -o /tmp/setup-lando.sh \
+           && bash /tmp/setup-lando.sh --yes --dest "$HOME/.lando/bin" >/dev/null 2>&1 \
+           && [ -x "$LANDO_BIN" ]; then
+            export PATH="$HOME/.lando/bin:$PATH"
+            ok "lando ($("$LANDO_BIN" version 2>/dev/null || echo 'v3.x'))"
+        else
+            err "lando falhou"; FALHAS+=("lando")
+        fi
+        rm -f /tmp/setup-lando.sh
+    fi
 fi
 
 # ── 5. Claude Code ───────────────────────────────────────────────────────────
