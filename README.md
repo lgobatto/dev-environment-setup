@@ -185,6 +185,64 @@ INSTALL_DISCORD=0 INSTALL_SPOTIFY=0 bash setup-zorin-apps.sh
 
 ---
 
+### `setup-macos.sh` — macOS (Apple Silicon / Intel)
+
+Setup de **macOS** — equivalente do `setup-zorin-apps.sh` para quem roda Mac.
+Usa o Homebrew como gerenciador único: *formula* para CLI, *cask* para app
+GUI. Idempotente, e não aborta o script inteiro quando um pacote falha — ele
+registra a falha, segue, e lista tudo no resumo final.
+
+**Pré-requisitos** (pedem senha de administrador, então não rodam desatendidos):
+
+```bash
+xcode-select --install     # git, clang, make — diálogo gráfico
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+**O que instala:**
+- **CLIs base:** git, gh, jq, node, php, composer, wget, coreutils
+- **1Password:** app + CLI (`op`)
+- **Docker:** Docker Desktop (padrão) ou colima — ver abaixo
+- **Lando**, **Claude Code**
+- **Cloud/infra:** awscli, terraform (tap da HashiCorp), cloudflared, doctl,
+  glab, uv, wrangler (npm)
+- **Produtividade/IaC/segurança:** gitleaks, direnv, zoxide, mise, shellcheck,
+  shfmt, pre-commit, tflint (cask do tap terraform-linters), trivy, infracost,
+  terraform-docs, actionlint, eza, bat, ripgrep, fd, k9s, lazydocker, fzf
+- **Apps GUI (cask):** VS Code, Warp, Chrome, DBeaver, GitKraken, Firefox,
+  Discord, Spotify
+- **Nerd Fonts:** MesloLG, FiraCode
+
+```bash
+bash setup-macos.sh
+
+# Só CLIs, sem app gráfico:
+INSTALL_GUI=0 bash setup-macos.sh
+
+# Pular apps individuais (=0):
+INSTALL_DISCORD=0 INSTALL_SPOTIFY=0 bash setup-macos.sh
+```
+
+**Docker: `desktop` ou `colima`.** O padrão é o Docker Desktop, porque é o
+runtime que o Lando suporta oficialmente no macOS. Ele exige assinatura paga
+para empresas acima de 250 funcionários ou US$ 10M de faturamento. A
+alternativa FOSS — equivalente ao que o setup Linux faz, Engine sem Desktop —
+é o colima:
+
+```bash
+DOCKER_RUNTIME=colima bash setup-macos.sh
+```
+
+**Por que alguns pacotes não vêm do core do Homebrew:**
+
+| Ferramenta | Motivo | Comando |
+|---|---|---|
+| `terraform` | a formula saiu do core quando a HashiCorp trocou a licença para BUSL (2023) | `brew install hashicorp/tap/terraform` |
+| `tflint` | distribuído pelo tap do projeto, e como **cask** | `brew install --cask terraform-linters/tap/tflint` |
+| `wrangler` | a Cloudflare não mantém formula | `npm install -g wrangler` |
+
+---
+
 ### `migrate-project.sh` — Migração de projetos
 
 Move (ou clona) projetos do filesystem Windows para `~/projects/` no WSL2 nativo.
@@ -255,6 +313,7 @@ bash /mnt/c/Users/SEU_USUARIO/Work/dev-environment-setup/setup-wsl.sh
 |---|---|---|---|
 | `setup-windows.ps1` | ✅ | ❌ | ❌ |
 | `setup-zorin-apps.sh` | ❌ | ✅ | ❌ |
+| `setup-macos.sh` | ❌ | ❌ | ✅ |
 | `setup-wsl.sh` | ✅ | ✅ | ⚠️ parcial |
 | `migrate-project.sh` | ✅ | ✅ | ✅ |
 | `ssh-git-setup.sh` | ✅ | ✅ | ✅ |
@@ -268,6 +327,7 @@ bash /mnt/c/Users/SEU_USUARIO/Work/dev-environment-setup/setup-wsl.sh
 dev-environment-setup/
 ├── setup-windows.ps1       # Setup Windows: WSL2 + apps via winget
 ├── setup-zorin-apps.sh     # Setup Linux nativo (Zorin/Ubuntu): apps GUI + CLIs
+├── setup-macos.sh          # Setup macOS: apps GUI + CLIs via Homebrew
 ├── setup-wsl.sh            # Setup WSL2: Docker Engine, Node, PHP, Lando, Claude Code
 ├── migrate-project.sh      # Migrar projetos para ~/projects/ no WSL2
 ├── ssh-git-setup.sh        # SSH multi-identidade com 1Password
