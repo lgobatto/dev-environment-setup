@@ -10,7 +10,7 @@ A separação correta entre Windows e WSL2 é a chave da performance e da sanida
 | Windows | WSL2 (Ubuntu 24.04) |
 |---|---|
 | VS Code + Remote WSL | Node.js (via nvm) |
-| Cursor | PHP 8.3 + Composer |
+| Cursor | PHP 8.4 + Composer |
 | Chrome, Windows Terminal | **Docker Engine** (sem Docker Desktop) |
 | 1Password (opcional) | Lando CLI |
 | GitHub Desktop | Claude Code CLI |
@@ -83,7 +83,16 @@ bash setup-wsl.sh
 GIT_NAME="Leonardo Gobatto" GIT_EMAIL="leo@email.com" INSTALL_1PASSWORD=1 bash setup-wsl.sh
 ```
 
-### 3. Migrar projetos para o WSL2
+### 3. Validar o que ficou instalado
+
+```bash
+bash validate-env.sh
+```
+
+O setup não aborta quando um passo falha — ele avisa e segue. Este script diz
+o que realmente ficou de pé e sai com código 1 se algo crítico faltar.
+
+### 4. Migrar projetos para o WSL2
 
 ```bash
 # Clonar projeto direto no filesystem Linux (~/projects/)
@@ -126,16 +135,22 @@ Configura o ambiente de desenvolvimento dentro do Ubuntu 24.04. Idempotente.
 
 **O que instala:**
 - **Docker Engine** — sem Docker Desktop, direto no Linux
-- **nvm** + Node.js LTS (sempre última versão)
-- **PHP 8.3** + Composer (via `ppa:ondrej/php`)
+- **nvm** + Node.js LTS (sempre última versão, com fallback se a API cair)
+- **PHP 8.4** + Composer (via `ppa:ondrej/php`)
 - **Lando CLI** — versão mais recente via GitHub releases
 - **Claude Code CLI** — `@anthropic-ai/claude-code`
-- **GitHub CLI**
+- **GitHub CLI** — oferece `gh auth login` na hora, em terminal interativo
 - **Zsh** + Oh My Zsh + Powerlevel10k + plugins (autosuggestions, syntax-highlighting, completions) — pule com `SKIP_ZSH=1`
 - Git configurado para WSL (`core.autocrlf=input`, `init.defaultBranch=main`)
 
+**O que configura no shell** — ver [Configuração de shell](#configuração-de-shell-bash--zsh):
+- `~/.shell_local_exports.sh` — PATH, nvm, aliases e hooks; fonte única lida por bash **e** zsh
+- `~/.bashrc` — carrega o arquivo acima antes do early-return de shell não-interativo
+- `~/.zshrc` — Oh My Zsh + Powerlevel10k, carregando a mesma fonte única
+
 > Roda também em **Linux nativo** (Zorin/Ubuntu): o passo do `/etc/wsl.conf` é
-> pulado automaticamente fora do WSL.
+> pulado automaticamente fora do WSL. A release do Ubuntu é detectada em tempo
+> de execução — 24.04 e 26.04 LTS funcionam sem editar o script.
 
 **Variáveis de ambiente:**
 ```bash
@@ -143,13 +158,17 @@ GIT_NAME="Seu Nome"           # Nome para git config
 GIT_EMAIL="seu@email.com"     # Email para git config
 INSTALL_1PASSWORD=1           # Configura 1Password SSH agent
 NODE_VERSION="lts"            # "lts", "latest" ou versão específica "22"
-PHP_VERSION="8.3"             # Versão do PHP
+NODE_FALLBACK="24"            # Usado se `nvm install --lts` falhar
+PHP_VERSION="8.4"             # Versão do PHP
 SKIP_ZSH=1                    # Não instala Zsh/Oh My Zsh/Powerlevel10k
+INSTALL_PRODTOOLS=0           # Não instala CLIs de produtividade/IaC/segurança
+GH_AUTH_PROMPT=0              # Nunca pergunta sobre `gh auth login`
 ```
 
-**Aliases instalados:**
+**Aliases instalados** (todos em `~/.shell_local_exports.sh`):
 ```bash
 dev      # cd ~/projects
+gs       # git status
 lup      # lando start
 ldn      # lando stop
 ldev     # lando dev
@@ -157,7 +176,82 @@ lbuild   # lando theme-build
 lflush   # lando flush
 lacorn   # lando acorn
 cc       # claude (Claude Code CLI)
+exports  # abre ~/.shell_local_exports.sh no $EDITOR
+custom   # abre ~/.shell_local_custom.sh no $EDITOR
 ```
+
+---
+
+### `validate-env.sh` — Validação pós-instalação
+
+O `setup-wsl.sh` é tolerante a falha por design: um repositório apt fora do ar
+gera um aviso e o script continua. Bom para não travar o onboarding, ruim para
+descobrir o que ficou faltando — daí este script.
+
+```bash
+bash validate-env.sh            # relatório completo
+bash validate-env.sh --quiet    # só o resumo e as falhas
+```
+
+**O que verifica:**
+
+| Bloco | Verificação |
+|---|---|
+| 1. Ferramentas CLI | git, docker, node, npm, php, composer, lando, gh, claude, nvm |
+| 2. Versões mínimas | PHP ≥ 8.4, Node em linha LTS (major par) |
+| 3. Configurações | `~/.gitconfig`, `user.name`/`user.email`, e se bash **e** zsh carregam a fonte única |
+| 4. Diretórios | `~/projects`, `~/.ssh` (permissão 700), `~/.local/bin`; alerta se `~/projects` cair em `/mnt/*` |
+| 5. Aliases e PATH | aliases definidos, `~/.local/bin` e `~/.lando/bin` no PATH |
+| 6. Claude Code | se a cadeia de login (`bash -l` → `~/.profile` → `~/.bashrc`) acha node/php/composer/lando |
+| 7. Testes funcionais | `docker ps` de verdade, PHP executa código, extensões PHP presentes, `gh auth status` |
+| 8. Produtividade | gitleaks, tflint, trivy, k9s, direnv, zoxide, mise e afins (opcionais) |
+
+Sai com código **0** se nada crítico falhou e **1** caso contrário — dá para usar
+em CI. Itens opcionais entram como aviso, não como falha.
+
+---
+
+## Configuração de shell (bash + zsh)
+
+Aliases, PATH e o carregamento do nvm viviam só no `~/.zshrc`. Quem abre o
+terminal como usuário nunca percebe o problema, mas ferramentas que disparam
+comandos por um bash não-interativo — **Claude Code**, hooks de `pre-commit`,
+tarefas de CI local — herdavam um PATH sem `node`, sem `lando` e sem
+`~/.local/bin`, e falhavam com um `command not found` confuso em ferramentas
+que estavam instaladas.
+
+O setup resolve isso com uma fonte única:
+
+```
+~/.shell_local_exports.sh     PATH, nvm, aliases, hooks (direnv/zoxide/mise)
+        ↑                     sh portável — sem arrays, sem [[ ]]
+        ├── ~/.bashrc         bloco no TOPO, antes do early-return de
+        │                     shell não-interativo
+        └── ~/.zshrc          depois do oh-my-zsh.sh, para os nossos
+                              aliases ganharem dos plugins do OMZ
+~/.shell_local_custom.sh      suas customizações — nunca sobrescrito
+```
+
+**Por que o bloco fica no topo do `~/.bashrc`:** o `.bashrc` padrão do Ubuntu
+começa com `case $- in *i*) ;; *) return;; esac`. Num shell não-interativo ele
+retorna ali mesmo, então qualquer coisa apendada no fim do arquivo nunca roda.
+A cadeia que importa é a de login: `bash -l` → `~/.profile` → `~/.bashrc`.
+
+**Onde editar o quê:**
+
+| Quero mudar | Arquivo |
+|---|---|
+| Um alias, uma entrada de PATH, uma variável | `~/.shell_local_exports.sh` (ou `exports`) |
+| Algo só meu, que o setup não deve sobrescrever | `~/.shell_local_custom.sh` (ou `custom`) |
+| Tema, plugin ou prompt do zsh | `~/.zshrc` |
+| Histórico, completion ou prompt do bash | `~/.bashrc`, fora do bloco marcado |
+
+O `setup-wsl.sh` reescreve `~/.shell_local_exports.sh` a cada execução, sempre
+com backup em `~/.shell_local_exports.sh.backup.<timestamp>`. No `~/.bashrc`
+ele só troca o bloco entre os marcadores `# >>> setup-wsl.sh managed >>>` e
+`# <<< setup-wsl.sh managed <<<` — se o arquivo já existia com configuração de
+terceiro (o `ssh-git-setup.sh` apenda o `SSH_AUTH_SOCK` do 1Password ali), o
+resto é preservado.
 
 ---
 
@@ -315,6 +409,7 @@ bash /mnt/c/Users/SEU_USUARIO/Work/dev-environment-setup/setup-wsl.sh
 | `setup-zorin-apps.sh` | ❌ | ✅ | ❌ |
 | `setup-macos.sh` | ❌ | ❌ | ✅ |
 | `setup-wsl.sh` | ✅ | ✅ | ⚠️ parcial |
+| `validate-env.sh` | ✅ | ✅ | ⚠️ parcial |
 | `migrate-project.sh` | ✅ | ✅ | ✅ |
 | `ssh-git-setup.sh` | ✅ | ✅ | ✅ |
 | `nerdfonts-install.sh` | ✅ WSL2 | ✅ | ❌ |
@@ -329,6 +424,7 @@ dev-environment-setup/
 ├── setup-zorin-apps.sh     # Setup Linux nativo (Zorin/Ubuntu): apps GUI + CLIs
 ├── setup-macos.sh          # Setup macOS: apps GUI + CLIs via Homebrew
 ├── setup-wsl.sh            # Setup WSL2: Docker Engine, Node, PHP, Lando, Claude Code
+├── validate-env.sh         # Validação pós-instalação (exit 1 se algo crítico falhou)
 ├── migrate-project.sh      # Migrar projetos para ~/projects/ no WSL2
 ├── ssh-git-setup.sh        # SSH multi-identidade com 1Password
 ├── nerdfonts-install.sh    # Instalador de Nerd Fonts

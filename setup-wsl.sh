@@ -6,12 +6,20 @@
 #  O que instala:
 #    - Docker Engine (sem Docker Desktop — mais leve e mais rápido)
 #    - nvm + Node.js LTS
-#    - PHP 8.3 + Composer
+#    - PHP 8.4 + Composer
 #    - Lando CLI (Linux nativo)
 #    - Claude Code CLI
 #    - GitHub CLI
 #    - Zsh + Oh My Zsh + Powerlevel10k + plugins
 #    - Git configurado para WSL
+#
+#  O que configura:
+#    - ~/.shell_local_exports.sh — PATH/aliases/hooks, fonte única lida por
+#      bash E zsh (evita divergência entre os dois shells)
+#    - ~/.bashrc  — carrega o arquivo acima antes do early-return de shell
+#      não-interativo, para que Claude Code, pre-commit e tarefas disparadas
+#      por um bash de login achem node/php/lando
+#    - ~/.zshrc   — Oh My Zsh + Powerlevel10k, carregando a mesma fonte única
 #
 #  Uso:
 #    bash setup-wsl.sh
@@ -29,9 +37,13 @@ INSTALL_1PASSWORD="${INSTALL_1PASSWORD:-0}"
 GIT_NAME="${GIT_NAME:-}"
 GIT_EMAIL="${GIT_EMAIL:-}"
 NODE_VERSION="${NODE_VERSION:-lts}"    # "lts", "latest", ou versão específica "22"
-PHP_VERSION="${PHP_VERSION:-8.3}"
+NODE_FALLBACK="${NODE_FALLBACK:-24}"   # usado se `nvm install --lts` falhar
+# PHP 8.4: security support até 31/12/2028. A 8.3 entrou em security-only e
+# expira em 31/12/2027 — não faz sentido nascer com ela num setup novo.
+PHP_VERSION="${PHP_VERSION:-8.4}"
 SKIP_ZSH="${SKIP_ZSH:-0}"              # 1 = não instala Zsh/Oh My Zsh/Powerlevel10k
 INSTALL_PRODTOOLS="${INSTALL_PRODTOOLS:-1}"  # CLIs de produtividade/IaC/segurança
+GH_AUTH_PROMPT="${GH_AUTH_PROMPT:-1}"  # 0 = nunca oferece `gh auth login`
 
 # ── Cores e helpers ──────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -63,6 +75,24 @@ echo -e "${RESET}"
 # ── Verificar distro ─────────────────────────────────────────────────────────
 if ! grep -qi "ubuntu" /etc/os-release 2>/dev/null; then
     warn "Este script foi feito para Ubuntu. Pode não funcionar em outra distro."
+fi
+
+# Detecta a release em vez de assumir 24.04: o ppa:ondrej/php e o repo do
+# Docker publicam por codename, então uma 26.04 recém-instalada funciona sem
+# editar o script — mas avisamos se o codename for mais novo que o suportado.
+#
+# Lê /etc/os-release, não `lsb_release`: o pacote lsb-release só é instalado no
+# passo 2, depois desta verificação.
+UBUNTU_RELEASE="$( (. /etc/os-release 2>/dev/null && echo "${VERSION_ID:-0}") || echo 0 )"
+UBUNTU_MAJOR="${UBUNTU_RELEASE%%.*}"
+UBUNTU_CODENAME="$( (. /etc/os-release 2>/dev/null && echo "${VERSION_CODENAME:-desconhecido}") || echo desconhecido )"
+if [ "$UBUNTU_MAJOR" -ge 26 ] 2>/dev/null; then
+    ok "Ubuntu ${UBUNTU_RELEASE} (${UBUNTU_CODENAME}) detectado"
+    warn "Testado em 24.04/26.04. Se um repo apt não tiver ${UBUNTU_CODENAME} ainda, o passo falha e o script segue."
+elif [ "$UBUNTU_MAJOR" -ge 24 ] 2>/dev/null; then
+    ok "Ubuntu ${UBUNTU_RELEASE} (${UBUNTU_CODENAME}) detectado"
+elif [ "$UBUNTU_MAJOR" != "0" ]; then
+    warn "Ubuntu ${UBUNTU_RELEASE} é anterior ao 24.04 LTS — recomendado atualizar"
 fi
 
 # ── 1. Habilitar systemd no WSL2 (necessário para Docker autostart) ──────────
@@ -100,6 +130,7 @@ apt_install \
     apt-transport-https \
     lsb-release \
     socat jq \
+    python3 \
     xdg-utils
 ok "Sistema atualizado e dependências base instaladas"
 
@@ -178,9 +209,17 @@ set +u
 
 # Instalar Node.js
 if [ "$NODE_VERSION" = "lts" ]; then
-    nvm install --lts
-    nvm use --lts
-    nvm alias default 'lts/*'
+    # `--lts` resolve o alias remoto lts/*. Se a rede/API do nodejs.org estiver
+    # fora, cai numa versão LTS conhecida em vez de abortar o setup inteiro.
+    if nvm install --lts; then
+        nvm use --lts
+        nvm alias default 'lts/*'
+    else
+        warn "nvm install --lts falhou — tentando Node ${NODE_FALLBACK}"
+        nvm install "$NODE_FALLBACK"
+        nvm use "$NODE_FALLBACK"
+        nvm alias default "$NODE_FALLBACK"
+    fi
 elif [ "$NODE_VERSION" = "latest" ]; then
     nvm install node
     nvm use node
@@ -198,7 +237,10 @@ ok "Node.js: $(node --version) | npm: $(npm --version)"
 # ── 5. PHP + Composer ────────────────────────────────────────────────────────
 step "Instalando PHP ${PHP_VERSION} + Composer..."
 
-if ! has php || ! php -r "exit(PHP_MAJOR_VERSION >= 8 ? 0 : 1);"; then
+# Checa o binário versionado (php8.4), não só `php`: numa máquina que já tinha
+# PHP 8.3 o teste antigo (PHP_MAJOR_VERSION >= 8) passava e a versão nova nunca
+# era instalada — exatamente o caso de quem roda o script de novo pra migrar.
+if ! has "php${PHP_VERSION}"; then
     # Repositório ondrej/php — suporte a múltiplas versões PHP no Ubuntu
     sudo add-apt-repository ppa:ondrej/php -y 2>/dev/null
     sudo apt-get update -qq
@@ -222,9 +264,17 @@ if ! has php || ! php -r "exit(PHP_MAJOR_VERSION >= 8 ? 0 : 1);"; then
         "php${PHP_VERSION}-imagick" \
         "php${PHP_VERSION}-xdebug"
 
-    ok "PHP instalado: $(php --version | head -1)"
+    ok "PHP instalado: $(php${PHP_VERSION} --version | head -1)"
 else
-    ok "PHP já instalado: $(php --version | head -1)"
+    ok "PHP ${PHP_VERSION} já instalado: $(php${PHP_VERSION} --version | head -1)"
+fi
+
+# Aponta `php` para a versão pedida. Sem isso, uma máquina que já tinha 8.3
+# continua resolvendo `php` → 8.3 mesmo depois de instalar a 8.4.
+if has "php${PHP_VERSION}"; then
+    sudo update-alternatives --set php "/usr/bin/php${PHP_VERSION}" 2>/dev/null \
+        && ok "php → php${PHP_VERSION}" \
+        || warn "não foi possível fixar o alternative do php (php ativo: $(php --version | head -1))"
 fi
 
 if ! has composer; then
@@ -245,6 +295,16 @@ else
     # Atualizar composer para versão mais recente
     sudo composer self-update 2>/dev/null || true
     ok "Composer já instalado: $(composer --version)"
+fi
+
+# Composer é instalado "sempre a última" — sem pin de versão. Uma release
+# quebrada deixaria um binário que não roda, e o erro só apareceria no primeiro
+# `composer install` de um projeto. Verificamos aqui.
+if composer --version 2>/dev/null | grep -q "Composer version"; then
+    ok "Composer funcional"
+else
+    fail "Composer instalado mas não responde a --version"
+    warn "Reinstale: sudo rm -f /usr/local/bin/composer && bash setup-wsl.sh"
 fi
 
 # ── 6. Lando CLI ─────────────────────────────────────────────────────────────
@@ -294,6 +354,31 @@ else
     ok "GitHub CLI instalado: $(gh --version | head -1)"
 fi
 
+# Autenticar agora, não no fim: o passo 13b baixa gitleaks/tflint/k9s/... via
+# `gh api`, e sem token esses binários eram silenciosamente pulados na primeira
+# execução — o usuário só descobria ao tentar usá-los.
+# Só pergunta em terminal interativo, para não travar o bootstrap automático
+# feito pelo setup-windows.ps1 / setup-zorin-apps.sh.
+if has gh; then
+    if gh auth status &>/dev/null; then
+        ok "GitHub CLI já autenticado"
+    elif [ "$GH_AUTH_PROMPT" = "1" ] && [ -t 0 ]; then
+        echo ""
+        info "O GitHub CLI autenticado permite baixar gitleaks, tflint, k9s e afins."
+        # `|| true`: um EOF no stdin faz o read retornar não-zero e, com
+        # `set -e`, derrubaria o script inteiro por causa de um prompt opcional
+        _gh_answer=""
+        read -r -p "  Autenticar agora com 'gh auth login'? [Y/n] " _gh_answer || true
+        case "${_gh_answer:-Y}" in
+            [Nn]*) warn "Pulado — rode 'gh auth login' depois e re-execute o script" ;;
+            *)     gh auth login && ok "GitHub CLI autenticado" \
+                       || warn "Autenticação não concluída — rode 'gh auth login' depois" ;;
+        esac
+    else
+        warn "GitHub CLI sem autenticação — rode 'gh auth login' depois"
+    fi
+fi
+
 # ── 8. Claude Code CLI ────────────────────────────────────────────────────────
 step "Instalando Claude Code CLI..."
 if has claude; then
@@ -304,6 +389,340 @@ else
     npm install -g @anthropic-ai/claude-code
     ok "Claude Code instalado"
 fi
+
+# ── 8b. Shell base: fonte única para bash e zsh ──────────────────────────────
+#
+# O problema: o setup deixava PATH, aliases e o carregamento do nvm só no
+# ~/.zshrc. Quem abre o terminal como usuário nunca nota, mas qualquer coisa
+# que rode por um bash não-interativo — Claude Code, hooks de pre-commit,
+# tarefas de CI local — herda um PATH sem node, sem lando e sem ~/.local/bin,
+# e falha com "command not found" em ferramentas que estão instaladas.
+#
+# A solução: um único ~/.shell_local_exports.sh, em sh portável, carregado
+# tanto pelo ~/.bashrc quanto pelo ~/.zshrc. Editar num lugar vale nos dois.
+step "Configurando shell base (~/.shell_local_exports.sh)..."
+
+# `|| true` obrigatório: sob `set -e`, um `[ -f X ] && cp` que dá falso encerra
+# o script — e numa máquina limpa o arquivo justamente não existe.
+[ -f "$HOME/.shell_local_exports.sh" ] && \
+    cp "$HOME/.shell_local_exports.sh" "$HOME/.shell_local_exports.sh.backup.$(date +%s)" || true
+
+# Escrito via python3 pelo mesmo motivo do .zshrc: garante LF e UTF-8 mesmo
+# quando o script foi clonado no Windows com autocrlf=true.
+python3 - "$HOME" << 'PYEOF'
+import sys, os
+
+home = sys.argv[1]
+path = os.path.join(home, ".shell_local_exports.sh")
+
+content = r'''#!/bin/sh
+# =============================================================================
+#  ~/.shell_local_exports.sh — fonte unica de PATH, aliases e hooks
+#
+#  Carregado por ~/.bashrc E ~/.zshrc. Escreva sh portavel aqui: sem arrays,
+#  sem [[ ]], sem substituicao de string estilo bash. Coisas especificas de um
+#  shell (completion, prompt) ficam no rc daquele shell.
+#
+#  Gerado por setup-wsl.sh — mudancas manuais sobrevivem em
+#  ~/.shell_local_exports.sh.backup.<timestamp>, mas sao sobrescritas na
+#  proxima execucao. Preferencias pessoais: use ~/.shell_local_custom.sh
+#  (carregado no fim deste arquivo e nunca sobrescrito pelo setup).
+# =============================================================================
+
+# === PATH =====================================================================
+# Binarios de release instalados sem sudo (gitleaks, tflint, k9s, ...)
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) PATH="$HOME/.local/bin:$PATH" ;;
+esac
+
+# Lando instala em ~/.lando/bin pelo setup-lando.sh oficial (WSL/Linux)
+case ":$PATH:" in
+    *":$HOME/.lando/bin:"*) ;;
+    *) PATH="$HOME/.lando/bin:$PATH" ;;
+esac
+
+# Composer global (vendor/bin de pacotes instalados com `composer global`)
+if [ -d "$HOME/.config/composer/vendor/bin" ]; then
+    case ":$PATH:" in
+        *":$HOME/.config/composer/vendor/bin:"*) ;;
+        *) PATH="$HOME/.config/composer/vendor/bin:$PATH" ;;
+    esac
+fi
+
+export PATH
+
+# === nvm ======================================================================
+# Precisa vir daqui, e nao so do .zshrc: sem isso um `bash -lc "node -v"`
+# (padrao de ferramentas que disparam comandos) nao acha o node.
+export NVM_DIR="$HOME/.nvm"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+    # `\.` escapa um eventual alias de `.`. nvm.sh referencia variaveis nao
+    # inicializadas: se o chamador ligou `set -u` (script com `set -euo
+    # pipefail` que carrega este arquivo), desligamos so durante o carregamento
+    # e restauramos o estado original depois.
+    case $- in
+        *u*) _had_nounset=1; set +u ;;
+          *) _had_nounset=0 ;;
+    esac
+    \. "$NVM_DIR/nvm.sh"
+    [ "$_had_nounset" = 1 ] && set -u
+    unset _had_nounset
+fi
+
+# === Editor ===================================================================
+# Respeita um EDITOR ja exportado; senao prefere o VS Code (que no WSL abre no
+# Windows via `code`) e cai no nano em maquina sem GUI.
+if [ -z "${EDITOR:-}" ]; then
+    if command -v code >/dev/null 2>&1; then
+        EDITOR="code"
+    else
+        EDITOR="nano"
+    fi
+fi
+export EDITOR
+
+# === Navegacao ================================================================
+alias dev="cd ~/projects"
+alias la="ls -lah --color=auto"
+alias ll="ls -lh --color=auto"
+
+# === Git ======================================================================
+alias gs="git status"
+alias gco="git checkout"
+alias gpl="git pull --recurse-submodules"
+alias gps="git push"
+alias gcm="git commit -m"
+
+# === Docker ===================================================================
+alias dcu="docker compose up"
+alias dcd="docker compose down"
+alias dcl="docker compose logs -f"
+alias dps="docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
+
+# === Lando ====================================================================
+alias lup="lando start"
+alias ldn="lando stop"
+alias ldev="lando dev"
+alias lbuild="lando theme-build"
+alias lflush="lando flush"
+alias lacorn="lando acorn"
+alias lssh="lando ssh"
+
+# === Claude Code ==============================================================
+alias cc="claude"
+
+# === CLI moderna (instalada por INSTALL_PRODTOOLS=1) ==========================
+# No Ubuntu os binarios tem nome com sufixo pra nao colidir com pacotes antigos
+command -v batcat >/dev/null 2>&1 && alias bat="batcat"
+command -v fdfind >/dev/null 2>&1 && alias fd="fdfind"
+# eza como comando extra, nao como shadow do `ls` — sobrescrever `ls` quebra
+# flags que scripts e habitos assumem do coreutils
+command -v eza >/dev/null 2>&1 && alias lz="eza --group-directories-first --icons"
+
+# === Utilitarios ==============================================================
+alias exports='$EDITOR ~/.shell_local_exports.sh'
+alias custom='$EDITOR ~/.shell_local_custom.sh'
+
+# === Hooks por shell ==========================================================
+# direnv e zoxide geram codigo diferente pra bash e zsh — detectamos qual esta
+# rodando. $ZSH_VERSION so existe no zsh; $BASH_VERSION so no bash.
+if [ -n "${ZSH_VERSION:-}" ]; then
+    _shell_name="zsh"
+elif [ -n "${BASH_VERSION:-}" ]; then
+    _shell_name="bash"
+else
+    _shell_name=""
+fi
+
+if [ -n "$_shell_name" ]; then
+    command -v direnv >/dev/null 2>&1 && eval "$(direnv hook $_shell_name)"
+    command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init $_shell_name)"
+    command -v mise   >/dev/null 2>&1 && eval "$(mise activate $_shell_name)"
+fi
+unset _shell_name
+
+# === Customizacoes do usuario =================================================
+# Este arquivo nunca e sobrescrito pelo setup-wsl.sh — coloque suas coisas aqui
+[ -f "$HOME/.shell_local_custom.sh" ] && \. "$HOME/.shell_local_custom.sh"
+
+# Ultima linha deliberada: sem ela, o `[ -f ... ]` falso acima viraria o status
+# de saida deste arquivo, e um chamador com `set -e` abortaria ao carrega-lo.
+:
+'''
+
+with open(path, "w", encoding="utf-8", newline="\n") as f:
+    f.write(content)
+
+print(f"  escrito: {path} ({content.count(chr(10))} linhas, LF, UTF-8)")
+PYEOF
+ok "~/.shell_local_exports.sh configurado"
+
+# ── 8c. ~/.bashrc — bash tambem precisa achar as ferramentas ──────────────────
+#
+# O .bashrc padrão do Ubuntu aborta na primeira linha quando não-interativo
+# ("case $- in *i*) ;; *) return;; esac"), então o source do nosso arquivo
+# precisa vir ANTES desse early-return — apender no fim não resolveria nada.
+#
+# Não sobrescrevemos um .bashrc que não foi gerado por nós: o
+# `ssh-git-setup.sh`, por exemplo, apenda o SSH_AUTH_SOCK do 1Password ali.
+# Nesse caso só injetamos o bloco gerenciado no topo e preservamos o resto.
+step "Configurando ~/.bashrc..."
+
+[ -f "$HOME/.bashrc" ] && cp "$HOME/.bashrc" "$HOME/.bashrc.backup.$(date +%s)" || true
+
+python3 - "$HOME" << 'PYEOF'
+import sys, os
+
+home = sys.argv[1]
+path = os.path.join(home, ".bashrc")
+
+# Dois blocos gerenciados, porque eles precisam de posicoes diferentes:
+#
+#   TOP  — antes do early-return de shell nao-interativo. A cadeia de login
+#          (bash -l -> ~/.profile -> ~/.bashrc) e como Claude Code, pre-commit
+#          e afins resolvem node/php/lando; depois do early-return nada disso
+#          seria carregado.
+#   BOT  — no fim do arquivo. Prompt, historico e completion so fazem sentido
+#          em shell interativo, e o early-return do proprio .bashrc do Ubuntu
+#          garante que essa parte nem seja lida fora dele.
+TOP_START = "# >>> setup-wsl.sh managed (exports) >>>"
+TOP_END   = "# <<< setup-wsl.sh managed (exports) <<<"
+BOT_START = "# >>> setup-wsl.sh managed (interativo) >>>"
+BOT_END   = "# <<< setup-wsl.sh managed (interativo) <<<"
+
+top = f'''{TOP_START}
+# Fonte unica de PATH/aliases/hooks, compartilhada com o ~/.zshrc.
+# Nao edite este bloco: ele e reescrito a cada execucao do setup-wsl.sh.
+# Aliases e PATH vao em ~/.shell_local_exports.sh; coisas suas, em
+# ~/.shell_local_custom.sh (que o setup nunca sobrescreve).
+[ -f "$HOME/.shell_local_exports.sh" ] && . "$HOME/.shell_local_exports.sh"
+{TOP_END}'''
+
+bottom = f'''{BOT_START}
+# Nao edite este bloco: ele e reescrito a cada execucao do setup-wsl.sh.
+''' + r'''
+# === Historico ================================================================
+HISTCONTROL=ignoreboth       # nao grava duplicatas nem linhas com espaco na frente
+HISTSIZE=10000
+HISTFILESIZE=20000
+HISTTIMEFORMAT="%F %T "
+shopt -s histappend          # varias sessoes nao sobrescrevem o historico
+shopt -s checkwinsize        # recalcula LINES/COLUMNS ao redimensionar
+shopt -s globstar 2>/dev/null || true   # ** recursivo
+
+# === Completion ===============================================================
+if ! shopt -oq posix; then
+    if [ -f /usr/share/bash-completion/bash_completion ]; then
+        . /usr/share/bash-completion/bash_completion
+    elif [ -f /etc/bash_completion ]; then
+        . /etc/bash_completion
+    fi
+fi
+
+# nvm e gh trazem completion propria
+[ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
+command -v gh >/dev/null 2>&1 && eval "$(gh completion -s bash)" 2>/dev/null
+
+# === Prompt com branch do git =================================================
+# Usa __git_ps1 quando o bash-completion do git esta disponivel (mais rapido e
+# lida com rebase/merge em andamento); cai num `git symbolic-ref` se nao.
+if declare -f __git_ps1 >/dev/null 2>&1; then
+    _prompt_git() { __git_ps1 " (%s)"; }
+else
+    _prompt_git() {
+        local b
+        b=$(git symbolic-ref --short HEAD 2>/dev/null) || return 0
+        printf " (%s)" "$b"
+    }
+fi
+
+if [ -n "${debian_chroot:-}" ]; then
+    _chroot_prefix="($debian_chroot)"
+else
+    _chroot_prefix=""
+fi
+
+case "$TERM" in
+    xterm-color|*-256color|xterm-kitty|screen*|tmux*)
+        PS1='${_chroot_prefix}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\[\033[01;33m\]$(_prompt_git)\[\033[00m\]\$ '
+        ;;
+    *)
+        PS1='${_chroot_prefix}\u@\h:\w$(_prompt_git)\$ '
+        ;;
+esac
+
+# Titulo da janela com o diretorio atual
+case "$TERM" in
+    xterm*|rxvt*|screen*|tmux*)
+        PS1="\[\e]0;${_chroot_prefix}\u@\h: \w\a\]$PS1"
+        ;;
+esac
+
+# === Cores ====================================================================
+if [ -x /usr/bin/dircolors ]; then
+    test -r "$HOME/.dircolors" && eval "$(dircolors -b "$HOME/.dircolors")" \
+        || eval "$(dircolors -b)"
+    alias grep="grep --color=auto"
+fi
+''' + f'''{BOT_END}
+'''
+
+# Esqueleto usado so quando nao existe .bashrc nenhum: o early-return no meio
+# separa o bloco TOP (sempre) do BOT (so interativo).
+skeleton = f'''# =============================================================================
+#  ~/.bashrc — gerado por setup-wsl.sh
+# =============================================================================
+
+{top}
+
+# === Daqui pra baixo, so shell interativo ====================================
+case $- in
+    *i*) ;;
+      *) return ;;
+esac
+
+{bottom}'''
+
+
+def strip_block(text, start, end):
+    """Remove um bloco delimitado, se presente. Idempotencia entre execucoes."""
+    while start in text and end in text:
+        head, _, rest = text.partition(start)
+        _, _, tail = rest.partition(end)
+        text = head.rstrip("\n") + "\n" + tail.lstrip("\n")
+    return text
+
+
+def write(text, note):
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    print(f"  {note}: {path} ({text.count(chr(10))} linhas, LF, UTF-8)")
+
+
+if not os.path.exists(path):
+    write(skeleton, "escrito")
+else:
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        existing = f.read()
+
+    had_blocks = TOP_START in existing
+
+    # Tira as versoes antigas dos nossos blocos e recoloca nas posicoes certas.
+    # O que sobra no meio e config de terceiro — o .bashrc default do Ubuntu, ou
+    # linhas apendadas pelo ssh-git-setup.sh (SSH_AUTH_SOCK do 1Password) — e
+    # atravessa intacta.
+    body = strip_block(existing, TOP_START, TOP_END)
+    body = strip_block(body, BOT_START, BOT_END)
+    body = body.strip("\n")
+
+    write(f"{top}\n\n{body}\n\n{bottom}",
+          "blocos atualizados em" if had_blocks else "blocos inseridos em")
+
+    if not had_blocks:
+        print("  (config existente preservada — backup em ~/.bashrc.backup.*)")
+PYEOF
+ok "~/.bashrc configurado"
 
 # ── 9. Zsh + Oh My Zsh + Powerlevel10k ───────────────────────────────────────
 if [ "$SKIP_ZSH" = "1" ]; then
@@ -356,8 +775,8 @@ fi
 if [ "$SKIP_ZSH" != "1" ]; then
 step "Configurando .zshrc..."
 
-# Backup do .zshrc existente
-[ -f "$HOME/.zshrc" ] && cp "$HOME/.zshrc" "$HOME/.zshrc.backup.$(date +%s)"
+# Backup do .zshrc existente (`|| true`: sob `set -e` o teste falso abortaria)
+[ -f "$HOME/.zshrc" ] && cp "$HOME/.zshrc" "$HOME/.zshrc.backup.$(date +%s)" || true
 
 # Usar Python para escrever o .zshrc — evita problemas de CRLF (script pode ter
 # vindo do Windows) e de escaping em heredocs com caracteres Unicode.
@@ -381,41 +800,19 @@ content = (
     "    zsh-autosuggestions\n    zsh-syntax-highlighting\n    zsh-completions\n"
     ")\n\n"
     "source $ZSH/oh-my-zsh.sh\n\n"
-    "# === nvm ======================================================================\n"
-    'export NVM_DIR="$HOME/.nvm"\n'
-    '[ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"\n'
+    "# === Fonte unica (bash + zsh) =================================================\n"
+    "# PATH, nvm, aliases e hooks vivem em ~/.shell_local_exports.sh, carregado\n"
+    "# tambem pelo ~/.bashrc. Edite lah, nao aqui -- assim bash e zsh nunca\n"
+    "# divergem, e ferramentas disparadas por um bash de login (Claude Code,\n"
+    "# pre-commit) veem exatamente o mesmo ambiente que o seu terminal.\n"
+    "# Vem DEPOIS do oh-my-zsh.sh de proposito: os plugins do OMZ definem aliases\n"
+    "# proprios (ex.: `gcm` no plugin git) e os nossos precisam ganhar.\n"
+    '[ -f "$HOME/.shell_local_exports.sh" ] && source "$HOME/.shell_local_exports.sh"\n\n'
+    "# === Completion especifica do zsh =============================================\n"
     '[ -s "$NVM_DIR/bash_completion" ] && \\. "$NVM_DIR/bash_completion"\n\n'
-    "# === Lando ====================================================================\n"
-    '# Instalado em ~/.lando/bin pelo setup-lando.sh oficial (WSL/Linux)\n'
-    'export PATH="$HOME/.lando/bin:$PATH"\n\n'
-    "# === Navegacao ================================================================\n"
-    'alias dev="cd ~/projects"\n'
-    'alias la="ls -lah --color=auto"\n'
-    'alias ll="ls -lh --color=auto"\n\n'
-    "# === Git ======================================================================\n"
-    'alias gs="git status"\n'
-    'alias gco="git checkout"\n'
-    'alias gpl="git pull --recurse-submodules"\n'
-    'alias gps="git push"\n'
-    'alias gcm="git commit -m"\n\n'
-    "# === Docker ===================================================================\n"
-    'alias dcu="docker compose up"\n'
-    'alias dcd="docker compose down"\n'
-    'alias dcl="docker compose logs -f"\n'
-    "alias dps=\"docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'\"\n\n"
-    "# === Lando aliases ============================================================\n"
-    'alias lup="lando start"\n'
-    'alias ldn="lando stop"\n'
-    'alias ldev="lando dev"\n'
-    'alias lbuild="lando theme-build"\n'
-    'alias lflush="lando flush"\n'
-    'alias lacorn="lando acorn"\n'
-    'alias lssh="lando ssh"\n\n'
-    "# === Claude Code ==============================================================\n"
-    'alias cc="claude"\n\n'
     "# === Utilitarios ==============================================================\n"
     'alias reload="source ~/.zshrc"\n'
-    'alias zshrc="code ~/.zshrc"\n'
+    "alias zshrc='$EDITOR ~/.zshrc'\n"
     "\n# === Powerlevel10k ============================================================\n"
     "[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh\n"
 )
@@ -558,28 +955,44 @@ cat << 'SUMMARY'
 SUMMARY
 echo -e "${RESET}"
 
+# Cada linha termina em `|| true`: com `set -e`, uma ferramenta ausente fazia a
+# lista `has X && echo` retornar não-zero e abortava o resumo pela metade —
+# justo no caso em que o resumo é mais útil.
 echo -e "  Versões instaladas:"
-has node     && echo -e "    ${GREEN}✔${RESET} Node.js:    $(node --version)"
-has npm      && echo -e "    ${GREEN}✔${RESET} npm:        $(npm --version)"
-has php      && echo -e "    ${GREEN}✔${RESET} PHP:        $(php --version | head -1 | cut -d' ' -f1-2)"
-has composer && echo -e "    ${GREEN}✔${RESET} Composer:   $(composer --version 2>/dev/null | cut -d' ' -f1-3)"
-has docker   && echo -e "    ${GREEN}✔${RESET} Docker:     $(docker --version 2>/dev/null | cut -d',' -f1)"
-has lando    && echo -e "    ${GREEN}✔${RESET} Lando:      $(lando version 2>/dev/null || echo 'instalado')"
-has gh       && echo -e "    ${GREEN}✔${RESET} GitHub CLI: $(gh --version 2>/dev/null | head -1 | cut -d' ' -f1-3)"
-has claude   && echo -e "    ${GREEN}✔${RESET} Claude Code: instalado"
-has zsh      && echo -e "    ${GREEN}✔${RESET} Zsh:        $(zsh --version)"
+has node     && echo -e "    ${GREEN}✔${RESET} Node.js:    $(node --version)" || true
+has npm      && echo -e "    ${GREEN}✔${RESET} npm:        $(npm --version)" || true
+has php      && echo -e "    ${GREEN}✔${RESET} PHP:        $(php --version | head -1 | cut -d' ' -f1-2)" || true
+has composer && echo -e "    ${GREEN}✔${RESET} Composer:   $(composer --version 2>/dev/null | cut -d' ' -f1-3)" || true
+has docker   && echo -e "    ${GREEN}✔${RESET} Docker:     $(docker --version 2>/dev/null | cut -d',' -f1)" || true
+has lando    && echo -e "    ${GREEN}✔${RESET} Lando:      $(lando version 2>/dev/null || echo 'instalado')" || true
+has gh       && echo -e "    ${GREEN}✔${RESET} GitHub CLI: $(gh --version 2>/dev/null | head -1 | cut -d' ' -f1-3)" || true
+has claude   && echo -e "    ${GREEN}✔${RESET} Claude Code: instalado" || true
+has zsh      && echo -e "    ${GREEN}✔${RESET} Zsh:        $(zsh --version)" || true
+
+echo ""
+echo -e "  Configuração de shell:"
+echo -e "    ${GREEN}✔${RESET} ~/.shell_local_exports.sh  (PATH, aliases, hooks — bash + zsh)"
+echo -e "    ${GREEN}✔${RESET} ~/.bashrc                  (carrega o arquivo acima)"
+if [ "$SKIP_ZSH" != "1" ]; then
+echo -e "    ${GREEN}✔${RESET} ~/.zshrc                   (Oh My Zsh + P10k + o arquivo acima)"
+fi
+echo -e "    ${BOLD}→${RESET} Suas customizações:        ~/.shell_local_custom.sh (nunca sobrescrito)"
 
 echo ""
 echo -e "  ${BOLD}Próximos passos:${RESET}"
+echo -e "    ${CYAN}•${RESET} Valide a instalação:        bash validate-env.sh"
 if [ "$SKIP_ZSH" != "1" ]; then
 echo -e "    ${CYAN}•${RESET} Aplique o novo shell:       exec zsh"
 echo -e "    ${CYAN}•${RESET} Configure Powerlevel10k:    p10k configure"
 fi
 echo -e "    ${CYAN}•${RESET} Configure Git:              git config --global user.name 'Seu Nome'"
+if has gh && ! gh auth status &>/dev/null; then
 echo -e "    ${CYAN}•${RESET} Autentique GitHub CLI:      gh auth login"
+fi
 echo -e "    ${CYAN}•${RESET} Clone seus projetos:        cd ~/projects && bash migrate-project.sh"
 echo -e "    ${CYAN}•${RESET} Abra no VS Code:            cd ~/projects/SEU_PROJETO && code ."
 echo ""
 echo -e "  ${YELLOW}⚠${RESET}  Se o Docker não iniciar, execute: sudo service docker start"
 echo -e "  ${YELLOW}⚠${RESET}  Para aplicar o grupo docker sem relogar: newgrp docker"
+echo -e "  ${YELLOW}⚠${RESET}  Abra um novo terminal para carregar PATH e aliases"
 echo ""

@@ -254,11 +254,12 @@ Write-Host "  OK  WSL2: Node, PHP, Docker Engine, Lando, Claude Code" -Foregroun
 Write-Host ""
 Write-Host "  Proximos passos:" -ForegroundColor White
 Write-Host "    1. Abra o Ubuntu 24.04 pelo Windows Terminal" -ForegroundColor White
-Write-Host "    2. Execute: exec zsh" -ForegroundColor White
-Write-Host "    3. Configure Powerlevel10k: p10k configure" -ForegroundColor White
-Write-Host "    4. Autentique o GitHub CLI: gh auth login" -ForegroundColor White
-Write-Host "    5. cd ~/projects && git clone git@github.com:BrisaBR/brisausa.git --recurse-submodules" -ForegroundColor White
-Write-Host "    6. cd brisausa && lando start" -ForegroundColor White
+Write-Host "    2. Valide o ambiente: bash validate-env.sh" -ForegroundColor White
+Write-Host "    3. Execute: exec zsh" -ForegroundColor White
+Write-Host "    4. Configure Powerlevel10k: p10k configure" -ForegroundColor White
+Write-Host "    5. Autentique o GitHub CLI: gh auth login" -ForegroundColor White
+Write-Host "    6. cd ~/projects && git clone git@github.com:BrisaBR/brisausa.git --recurse-submodules" -ForegroundColor White
+Write-Host "    7. cd brisausa && lando start" -ForegroundColor White
 Write-Host ""
 
 if ($Install1Password) {
