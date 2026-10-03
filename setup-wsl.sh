@@ -114,6 +114,17 @@ if grep -qiE '(microsoft|wsl)' /proc/version 2>/dev/null; then
     else
         ok "systemd já habilitado"
     fi
+    # systemd --user sem sessão aberta: timers do usuário (ex.: snapshot diário do
+    # workstation) disparam mesmo sem terminal. loginctl precisa do systemd de pé.
+    if [ -d /run/systemd/system ]; then
+        if loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q 'Linger=yes'; then
+            ok "linger já habilitado"
+        else
+            sudo loginctl enable-linger "$USER" && ok "linger habilitado (systemd --user sem sessão)"
+        fi
+    else
+        warn "systemd ainda não é PID 1 — rode este script de novo depois do 'wsl --shutdown' para habilitar o linger."
+    fi
 else
     ok "Linux nativo (não-WSL) — /etc/wsl.conf não é necessário"
 fi

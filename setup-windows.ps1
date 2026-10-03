@@ -122,11 +122,26 @@ $lines = @(
     "localhostForwarding=true",
     "",
     "[experimental]",
-    "autoMemoryReclaim=gradual"
+    "autoMemoryReclaim=gradual",
+    "",
+    "# Distro sempre de pe: o padrao e desligar 15 s apos o ultimo processo, e os",
+    "# servicos do systemd nao contam. -1 desliga o auto-shutdown (a tarefa",
+    "# agendada abaixo sobe a distro de novo no logon).",
+    "[general]",
+    "instanceIdleTimeout=-1"
 )
 Set-Content -Path $wslConfigPath -Value $lines -Encoding UTF8
 
 Write-OK ".wslconfig: ${allocRAM}GB RAM | ${allocCPU} CPUs | swap=${swapLabel}"
+
+# Logoff/reinicio do Windows derrubam o WSL; esta tarefa sobe a distro no logon,
+# sem janela (conhost --headless). Com instanceIdleTimeout=-1 ela fica de pe.
+$keepAction  = New-ScheduledTaskAction -Execute "$env:WINDIR\System32\conhost.exe" -Argument '--headless wsl.exe -d Ubuntu-24.04 --exec /bin/true'
+$keepTrigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:COMPUTERNAME\$env:USERNAME"
+$keepTrigger.Delay = 'PT30S'
+$keepSet = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -StartWhenAvailable
+Register-ScheduledTask -TaskName 'WSL Ubuntu-24.04 keepalive' -Action $keepAction -Trigger $keepTrigger -Settings $keepSet -Force | Out-Null
+Write-OK "Tarefa 'WSL Ubuntu-24.04 keepalive' (sobe a distro no logon)"
 
 wsl --shutdown 2>&1 | Out-Null
 Start-Sleep -Seconds 2
